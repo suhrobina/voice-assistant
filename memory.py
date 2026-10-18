@@ -100,6 +100,28 @@ class Memory:
             self._save()
         return added, removed
 
+    # By hand (console commands, phone memory panel)
+    def remember(self, fact):
+        """Add one fact; returns it, or None if empty or already known."""
+        with _lock:
+            added, _ = self.apply([fact], [])
+        return added[0] if added else None
+
+    def forget(self, fact):
+        """Remove one fact by its exact text; returns True if it was there."""
+        with _lock:
+            if fact not in self.facts:
+                return False
+            self.facts.remove(fact)
+            self._save()
+        return True
+
+    def forget_all(self):
+        with _lock:
+            removed, self.facts = self.facts, []
+            self._save()
+        return removed
+
     def update(self, user_text, url, model, options, on_change=None):
         """Ask the LLM what to remember from the user's message (blocking)."""
         current = "\n".join(f"- {f}" for f in self.facts) or "(none)"
@@ -136,7 +158,7 @@ class Memory:
         for f in removed:
             print(f"🧠  forgot: {f}", flush=True)
         if (added or removed) and on_change:
-            on_change()
+            on_change(added, removed)
 
     def update_async(self, *args, **kwargs):
         threading.Thread(target=self.update, args=args, kwargs=kwargs, daemon=True).start()

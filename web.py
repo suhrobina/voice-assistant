@@ -33,6 +33,7 @@ from assistant import (BARGE_IN, FOLLOW_UP, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        stop_llm, warm_up_llm)
 from assistant import set_wake_mode as set_recorder_wake_mode
 from assistant import apply_profile, list_profiles, load_profile
+from assistant import memory, memory_add, memory_clear, memory_remove
 import assistant  # for the current profile (assistant.profile changes on switch)
 
 # ---------------- CONFIG ----------------
@@ -107,6 +108,12 @@ def close_follow_up():
     wake_state("sleep")
 
 
+def memory_event(added=(), removed=(), learned=False):
+    """Send the fact list to the phone's memory panel; learned = the AI found it (chat note)."""
+    send({"type": "memory", "facts": list(memory.facts), "added": list(added),
+          "removed": list(removed), "learned": learned})
+
+
 def drain(tokens):
     for _ in tokens:
         pass
@@ -152,7 +159,7 @@ async def handler(ws):
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n📱  Phone connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "),
-          "profile": assistant.profile["name"],
+          "memory": memory is not None, "profile": assistant.profile["name"],
           "profiles": [{"name": n, "label": load_profile(n)["label"]} for n in list_profiles()]})
     sender = asyncio.create_task(pump(ws, queue))
     try:
@@ -174,6 +181,16 @@ async def handler(ws):
                 set_wake_mode(m.get("value"))
             elif m.get("type") == "played":  # the phone finished speaking the reply
                 open_follow_up()
+            elif str(m.get("type", "")).startswith("memory") and memory:  # the page's memory panel
+                fact = str(m.get("fact", "")).strip()
+                if m["type"] == "memory_add" and fact:
+                    memory_add(fact) or memory_event()  # already known: just resend the list
+                elif m["type"] == "memory_remove":
+                    memory_remove(fact) or memory_event()
+                elif m["type"] == "memory_clear":
+                    memory_clear()
+                else:
+                    memory_event()
     finally:
         sender.cancel()
         if Client.ws is ws:
@@ -238,6 +255,7 @@ async def main():
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
     print_memory_status()
+    assistant.on_memory_change = memory_event
     threading.Thread(target=listen, args=(recorder, inbox), daemon=True).start()
     threading.Thread(target=conversation, daemon=True).start()
 

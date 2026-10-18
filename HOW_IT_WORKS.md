@@ -134,6 +134,9 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 
 - It uses the same AI model and settings, so nothing extra is loaded into GPU memory.
 - Safety rule: a fact is removed only when you ask to forget it, or when a new fact replaces it.
+- By hand: the phone's 🧠 panel and the console commands (`/memory`, `/remember`, `/forget`) change the same
+  list. Every change — by hand or learned — updates the current conversation at once; learned facts also
+  show up in the phone chat as *🧠 Remembered: …*.
 
 ## Phone mode
 

@@ -168,9 +168,37 @@ def print_memory_status():
         print("🧠  Memory off", flush=True)
 
 
-def refresh_system_prompt():
-    """Let the current conversation see newly remembered facts."""
+on_memory_change = None  # web.py: callback(added, removed, learned) to update the phone
+
+
+def memory_changed(added=(), removed=(), learned=True):
+    """Let the current conversation see the change at once (learned = found by the AI, not by hand)."""
     history[0]["content"] = system_prompt()
+    if on_memory_change:
+        on_memory_change(added, removed, learned)
+
+
+def memory_add(fact):
+    fact = memory.remember(fact)
+    if fact:
+        print(f"🧠  remembered: {fact}", flush=True)
+        memory_changed([fact], [], learned=False)
+    return fact
+
+
+def memory_remove(fact):
+    if memory.forget(fact):
+        print(f"🧠  forgot: {fact}", flush=True)
+        memory_changed([], [fact], learned=False)
+        return True
+    return False
+
+
+def memory_clear():
+    removed = memory.forget_all()
+    print(f"🧠  forgot everything ({len(removed)} facts)", flush=True)
+    memory_changed([], removed, learned=False)
+    return removed
 
 
 history = [{"role": "system", "content": system_prompt()}]
@@ -238,7 +266,7 @@ def llm_stream(user_text, on_token=None, source="voice"):
     log_turn(source, user_text, reply, interrupted)
     if memory and worth_checking(user_text):  # skip questions and small talk
         memory.update_async(user_text, OLLAMA_URL, LLM_MODEL, LLM_OPTIONS,
-                            on_change=refresh_system_prompt)
+                            on_change=memory_changed)
 
 
 def warm_up_llm():
@@ -404,6 +432,9 @@ COMMANDS_HELP = """Commands (type and press Enter):
   /wake off    regular talking: answers everything it hears
   /profiles    list the profiles (personalities)
   /profile X   switch to profile X (fresh conversation, memory stays)
+  /memory      list what it remembers about you
+  /remember X  add a fact, e.g. /remember Has a cat named Luna
+  /forget N    forget fact number N (see /memory); /forget all = everything
   /help        show this list"""
 
 
@@ -466,6 +497,27 @@ def main():
                 tts.play_async(**PLAY_OPTIONS)
             else:
                 print(f"No profile '{words[1]}'. Type /profiles", flush=True)
+        elif words[0] in ("/memory", "/remember", "/forget") and not memory:
+            print("Memory is off (started with MEMORY=0).", flush=True)
+        elif words[0] == "/memory":
+            if not memory.facts:
+                print("🧠  Nothing remembered yet.", flush=True)
+            for i, fact in enumerate(memory.facts, 1):
+                print(f" {i:2d}. {fact}", flush=True)
+        elif words[0] == "/remember":
+            fact = text.split(maxsplit=1)[1].strip() if len(words) > 1 else ""
+            if not fact:
+                print("Usage: /remember FACT, e.g. /remember Has a cat named Luna", flush=True)
+            elif not memory_add(fact):
+                print("🧠  Already known.", flush=True)
+        elif words[0] == "/forget":
+            arg = words[1] if len(words) > 1 else ""
+            if arg == "all":
+                memory_clear()
+            elif arg.isdigit() and 1 <= int(arg) <= len(memory.facts):
+                memory_remove(memory.facts[int(arg) - 1])
+            else:
+                print("Usage: /forget N (number from /memory) or /forget all", flush=True)
         elif words[0] in ("/help", "/?"):
             print(COMMANDS_HELP, flush=True)
         else:

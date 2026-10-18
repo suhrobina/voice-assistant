@@ -15,6 +15,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Conversation log: `conversations/YYYY-MM-DD.md`, both modes, spoken/typed marked; `LOG=0` turns it off
 - [x] Phone page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; wake word toggle as a 👂 icon in the top bar
 - [x] Profiles: `profiles/*.md` (prompt + voice + settings), switch with `/profile` or the phone menu; shared memory, fresh conversation on switch; last choice remembered across restarts
+- [x] Memory on the phone and console: 🧠 panel (list, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities
@@ -37,7 +38,6 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - Samples to compare voices/speeds: `voice-samples/` (not in git)
 - [ ] Natural writing style in the system prompt: contractions, casual phrases, occasional "well," / "hmm,"
 - [ ] More human-like speech model: Chatterbox (emotion, voice cloning, ~3–4 GB) or Orpheus (very natural, heavy)
-- [ ] Other languages: Whisper supports many (`LANGUAGE=ru` or auto), Kokoro voices are mainly English
 
 ## 🖥️ Hardware: use more GPUs / PCs
 Available: RTX 3070 Ti 8 GB (current), Quadro T1000 4 GB, Titan Xp 12 GB.
@@ -56,4 +56,5 @@ Available: RTX 3070 Ti 8 GB (current), Quadro T1000 4 GB, Titan Xp 12 GB.
 - [ ] Remote access with Tailscale: use the assistant from anywhere, not just home Wi-Fi
 
 ## 💤 Parked (decided not now)
+- Other languages (e.g. Russian): English is enough. If ever: Whisper `large-v3-turbo` (distil-large-v3 is English-only), qwen3 already speaks Russian, Kokoro has no Russian → Silero TTS, routed per sentence by Cyrillic.
 - Noise suppression (RNNoise): phone mode already has it via the browser; Whisper handles light noise well and filters can even hurt accuracy. Revisit only if noise becomes a real problem — measure before/after.

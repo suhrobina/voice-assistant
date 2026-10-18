@@ -78,8 +78,12 @@ On by default. When you share something about yourself ("My name is…", "I have
 knows it next time — in both normal and phone mode.
 
 - **Forget something:** just say it — "Forget about my dog".
-- **See or edit what it knows:** open `memory/memory.md` — one fact per line, edit or delete freely
-  (restart the assistant afterwards).
+- **See or edit what it knows:**
+  - Phone: the **🧠 button** in the top bar opens the list — ✕ deletes a fact, the field adds one,
+    "Forget everything" clears it. When it learns something, a grey *🧠 Remembered: …* line appears in the chat.
+  - Console: `/memory` lists the facts, `/remember Has a cat named Luna` adds one, `/forget 3` deletes
+    fact 3, `/forget all` clears everything.
+  - Both take effect immediately. Or edit `memory/memory.md` by hand (one fact per line; restart afterwards).
 - **Turn off:** `MEMORY=0 ./run.sh` (or `MEMORY=0 ./run.sh --web`). Then `memory/memory.md` is
   neither read nor written.
 - **Start over:** delete `memory/memory.md`.
