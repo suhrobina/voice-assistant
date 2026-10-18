@@ -33,7 +33,7 @@ from assistant import (BARGE_IN, FOLLOW_UP, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        stop_llm, warm_up_llm)
 from assistant import set_wake_mode as set_recorder_wake_mode
 from assistant import apply_profile, list_profiles, load_profile
-from assistant import memory, memory_add, memory_clear, memory_remove
+from assistant import memory, memory_add, memory_clear, memory_remove, speakable
 import assistant  # for the current profile (assistant.profile changes on switch)
 
 # ---------------- CONFIG ----------------
@@ -142,7 +142,7 @@ def conversation():
             text_reply = threading.Thread(target=drain, args=(tokens,), daemon=True)
             text_reply.start()
         else:
-            tts.feed(tokens)
+            tts.feed(speakable(tokens))
             tts.play_async(**PLAY_OPTIONS, muted=True, on_audio_chunk=send)
 
 

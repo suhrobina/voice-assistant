@@ -269,6 +269,17 @@ def llm_stream(user_text, on_token=None, source="voice"):
                             on_change=memory_changed)
 
 
+MARKDOWN_SYMBOLS = str.maketrans("", "", "*_`#~")
+
+
+def speakable(tokens):
+    """Drop markdown symbols before Kokoro (it reads "*" as "asterisk"); the chat keeps them."""
+    for token in tokens:
+        token = token.translate(MARKDOWN_SYMBOLS)
+        if token:
+            yield token
+
+
 def warm_up_llm():
     requests.post(
         OLLAMA_URL,
@@ -557,7 +568,7 @@ def main():
             if source == "voice":
                 print(f"\nYou: {text}")
             print("AI : ", end="", flush=True)
-            tts.feed(llm_stream(text, source=source))
+            tts.feed(speakable(llm_stream(text, source=source)))
             tts.play_async(**PLAY_OPTIONS)
     except KeyboardInterrupt:
         print("\nBye!")

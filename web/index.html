@@ -264,7 +264,7 @@ function onMessage(e) {
 }
 
 // ---- voice replies: 24 kHz 16-bit PCM, scheduled back to back ----
-// Simple formatting for AI replies: **bold**, `code`, # headings, - / * bullets.
+// Simple formatting for AI replies: **bold**, *italic*, ~~strike~~, `code`, # headings, - / * bullets.
 // The text is HTML-escaped first, so nothing the model writes can inject markup.
 function format(text) {
   const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -272,6 +272,10 @@ function format(text) {
     .replace(/^[ \t]*#{1,6}[ \t]+(.+)$/gm, '<b>$1</b>')
     .replace(/^([ \t]*)[-*][ \t]+/gm, '$1• ')
     .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/__(.+?)__/g, '<b>$1</b>')
+    .replace(/(^|[^\w*])\*(?=\S)([^*\n]*?\S)\*(?![\w*])/g, '$1<i>$2</i>')   // *italic*
+    .replace(/(^|[^\w])_(?=\S)([^_\n]*?\S)_(?!\w)/g, '$1<i>$2</i>')        // _italic_ (not snake_case)
+    .replace(/~~(.+?)~~/g, '<s>$1</s>')
     .replace(/`([^`\n]+)`/g, '<code>$1</code>');
 }
 
