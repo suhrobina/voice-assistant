@@ -20,9 +20,8 @@ echo "==> Python environment"
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip wheel
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
-pip install "RealtimeSTT[faster-whisper]" "RealtimeTTS[kokoro]" requests onnxruntime \
-  nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
+# Exact, tested versions (incl. torch cu124 and the CUDA libraries) — see requirements.txt
+pip install -r requirements.txt
 
 chmod +x run.sh
 echo

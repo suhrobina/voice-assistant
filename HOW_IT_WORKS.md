@@ -139,6 +139,7 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 | `web/index.html` | The phone page: records the mic (16 kHz), plays the replies (24 kHz), shows the chat |
 | `certs/` | Self-signed HTTPS certificate, created on first `--web` start (browsers need HTTPS for the mic) |
 | `setup.sh` | One-time install: system packages, Ollama, the AI model, Python environment |
+| `requirements.txt` | Exact versions of all Python packages, so every install is identical to the tested one |
 | `run.sh` | Starts the assistant and tells it where the CUDA libraries are |
 | `.venv/` | Python environment with all installed packages |
 | `realtimesst.log` | RealtimeSTT's debug log — useful when something breaks |

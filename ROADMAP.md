@@ -8,11 +8,11 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Long-term memory: `memory.md`, can be turned off with `MEMORY=0`
 - [x] Docs: README, HOW_IT_WORKS, comments on every setting in `assistant.py`
 - [x] Typed messages: console (type + Enter) and web (text box, works without the mic; replies are spoken only while talking is on)
+- [x] Pinned package versions: `requirements.txt` (all 136 packages, verified in a fresh environment), used by `setup.sh`
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities
 - [ ] **Tools: time, date, timers, reminders.** "Remind me in 20 minutes to check the oven." Small models don't even know today's date without this.
-- [ ] **Pin package versions in `setup.sh`.** Protects fresh installs from breaking updates (that's what broke the project at the start). Known-good versions: RealtimeSTT 1.1.2, RealtimeTTS 0.8.10, kokoro 0.9.4, faster-whisper 1.2.1, ctranslate2 4.8.3, onnxruntime 1.31.0, torch/torchaudio 2.6.0 (cu124).
 - [ ] **Wake word** ("Hey Nova…") with openWakeWord, so it ignores the TV and other people. Most useful if it runs all day.
 
 ## 🛠️ Let it do things (more tools)
