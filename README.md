@@ -46,21 +46,22 @@ Notes:
 - Settings: `PORT=9000 ./run.sh --web`; all the usual ones (`VOICE`, `LLM_MODEL`…) work too.
 
 ## Two GPUs
-This PC: **RTX 3070 Ti** runs the AI model (`qwen2.5:7b`) + Whisper; **Quadro T1000** runs the voice
+This PC: **RTX 3070 Ti** runs the AI model (`qwen3:8b`) + Whisper; **Quadro T1000** runs the voice
 (Kokoro) and the desktop. Answers start as fast as on one GPU, with the smarter model.
 - **Settings:** in `local.env` (machine-specific, not in git). GPU numbers as in `nvidia-smi -L`:
   ```
   WHISPER_GPU=0                # ears on the 3070 Ti
   STT_COMPUTE=int8_float16     # 141 ms per sentence, ~1 GB less memory than float16 (159 ms)
   KOKORO_GPU=1                 # voice on the T1000
-  LLM_MODEL=qwen2.5:7b         # ~4.8 GB on the 3070 Ti
+  LLM_MODEL=qwen3:8b           # ~5.6 GB on the 3070 Ti (qwen2.5:7b: 4.8 GB, also installed)
   ```
   One-off override, e.g. `LLM_MODEL=llama3.2:3b ./run.sh`. Back to one GPU + llama: delete `local.env`.
 - **Desktop on the T1000:** monitor plugged into the T1000 *and* the BIOS primary display set to it.
   Otherwise the desktop still renders on the 3070 Ti (~0.3 GB, more with a browser video).
-- **Memory on the 3070 Ti:** ~5.9 GB of 8 GB used, ~2.3 GB free.
+- **Memory on the 3070 Ti:** ~6.7 GB of 8 GB used, ~1.1 GB free (with qwen2.5:7b: ~2.3 GB free).
 - **Why not Whisper on the T1000?** It has no tensor cores: 1.7 s per sentence even at `int8` (7 s at `float16`).
-- **Ollama's GPU** (one time, needs sudo; optional — it picks the 3070 Ti on its own now):
+- **Ollama's GPU** (one time, needs sudo; applied on this PC). Needed for qwen3 — without it, Ollama
+  splits the model across both cards and it gets slow:
   ```bash
   sudo mkdir -p /etc/systemd/system/ollama.service.d
   printf '[Service]\nEnvironment="CUDA_VISIBLE_DEVICES=<3070 Ti UUID>"\n' | sudo tee /etc/systemd/system/ollama.service.d/gpu.conf

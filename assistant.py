@@ -94,6 +94,7 @@ def llm_stream(user_text, on_token=None):
         "messages": history,
         "stream": True,
         "keep_alive": -1,  # keep model in VRAM -> no reload delay
+        "think": False,    # no silent "thinking" before answering (qwen3 etc.); ignored by other models
         "options": LLM_OPTIONS,
     }
     reply = ""
@@ -126,7 +127,8 @@ def warm_up_llm():
     requests.post(
         OLLAMA_URL,
         json={"model": LLM_MODEL, "messages": [{"role": "user", "content": "hi"}],
-              "stream": False, "keep_alive": -1, "options": {**LLM_OPTIONS, "num_predict": 1}},
+              "stream": False, "keep_alive": -1, "think": False,
+              "options": {**LLM_OPTIONS, "num_predict": 1}},
         timeout=300,
     )
 

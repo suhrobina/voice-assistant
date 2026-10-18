@@ -113,6 +113,7 @@ class Memory:
             "stream": False,
             "format": "json",
             "keep_alive": -1,
+            "think": False,
             # same num_ctx as the chat, otherwise Ollama reloads the model
             "options": {**options, "temperature": 0, "num_predict": 200},
         }
