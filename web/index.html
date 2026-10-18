@@ -153,9 +153,9 @@ function setStatus(text, live = false) {
 
 function idleStatus() {
   if (ws?.readyState !== WebSocket.OPEN) return;
-  if (mic && wakeName && wakeMode) setStatus(`💤 Say "${wakeName}", then talk`, true);
-  else if (mic) setStatus('Listening — talk or type', true);
-  else setStatus('Connected — type, or tap the wave button to talk');
+  if (mic && wakeName && wakeMode) setStatus(`💤 Say "${wakeName}"`, true);
+  else if (mic) setStatus('Listening', true);
+  else setStatus('Ready');
 }
 
 function add(cls, text) {
@@ -178,7 +178,7 @@ function connect() {
   };
   ws.onmessage = onMessage;
   ws.onclose = () => {
-    setStatus('Disconnected — reconnecting…');
+    setStatus('Reconnecting…');
     stopPlayback();
     setTimeout(connect, 2000);
   };
@@ -229,7 +229,7 @@ function format(text) {
 function onWake(state) {
   if (!mic || !wakeMode) return;
   if (state === 'listening') { setStatus('👂 Listening…', true); chime(); }
-  else if (state === 'window') setStatus('Go ahead — no wake word needed for a few seconds', true);
+  else if (state === 'window') setStatus('Go ahead…', true);
   else idleStatus();
 }
 
@@ -336,11 +336,11 @@ async function keepAwake() {
 
 async function startMic() {
   if (!window.isSecureContext) {
-    setStatus('Open this page with https:// — the microphone needs it');
+    setStatus('The mic needs https://');
     return;
   }
   starting = true;
-  setStatus('Starting microphone…');
+  setStatus('Starting mic…');
   try {
     ensureOut();
     mic = await navigator.mediaDevices.getUserMedia({
@@ -358,7 +358,7 @@ async function startMic() {
     idleStatus();
   } catch (err) {
     stopMic();
-    setStatus(err.name === 'NotAllowedError' ? 'Microphone permission denied' : 'Error: ' + err.message);
+    setStatus(err.name === 'NotAllowedError' ? 'Mic permission denied' : 'Error: ' + err.message);
   }
   starting = false;
 }
