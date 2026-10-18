@@ -4,3 +4,4 @@ __pycache__/
 certs/
 memory.md
 voice-samples/
+local.env

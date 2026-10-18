@@ -20,6 +20,7 @@ import wave
 
 import numpy as np
 import requests
+import torch
 from RealtimeSTT import AudioToTextRecorder
 from RealtimeTTS import KokoroEngine, TextToAudioStream
 
@@ -31,6 +32,10 @@ from memory import Memory, worth_checking
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")  # or another PC's IP
 LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:3b")        # fast; try qwen2.5:7b for smarter
 STT_MODEL = os.getenv("STT_MODEL", "distil-large-v3")    # accurate + fast on GPU; small.en = faster, less accurate
+STT_COMPUTE = os.getenv("STT_COMPUTE", "float16")        # Whisper precision; int8 for GPUs without tensor cores
+                                                         # (T1000: 1.7 s vs 7 s with float16), Pascal (Titan Xp)
+WHISPER_GPU = int(os.getenv("WHISPER_GPU", "0"))         # GPU numbers as in `nvidia-smi -L` (run.sh sets PCI order)
+KOKORO_GPU = int(os.getenv("KOKORO_GPU", "0"))           # e.g. 1 = put the voice on a second, smaller GPU
 LANGUAGE = os.getenv("LANGUAGE", "en")                   # "" = auto-detect
 VOICE = os.getenv("VOICE", "af_heart")                   # Kokoro voice: af_bella, am_michael, bf_emma...
                                                          # or a blend: "0.6*af_heart + 0.4*af_bella"
@@ -176,7 +181,8 @@ def make_recorder(interrupt, wake_word=WAKE_WORD, on_wake=None, **extra):
         model=STT_MODEL,
         language=LANGUAGE,
         device="cuda",
-        compute_type="float16",               # int8 for old GPUs (e.g. Titan Xp / Pascal)
+        compute_type=STT_COMPUTE,
+        gpu_device_index=WHISPER_GPU,
         spinner=False,
         silero_sensitivity=0.4,               # higher = hears quiet speech, but also noise
         silero_use_onnx=True,
@@ -205,6 +211,12 @@ PLAY_OPTIONS = dict(
     buffer_threshold_seconds=0.0,
     log_synthesized_text=False,
 )
+
+
+def make_voice():
+    """Kokoro on KOKORO_GPU (it loads onto the current GPU; its work follows the model)."""
+    with torch.cuda.device(KOKORO_GPU):
+        return KokoroEngine(voice=VOICE, default_speed=TTS_SPEED)
 
 
 def listen(recorder, inbox):
@@ -239,7 +251,7 @@ COMMANDS_HELP = """Commands (type and press Enter):
 
 def main():
     print("Loading voice...", flush=True)
-    engine = KokoroEngine(voice=VOICE, default_speed=TTS_SPEED)
+    engine = make_voice()
     tts = TextToAudioStream(engine, frames_per_buffer=256)
 
     def interrupt(force=False):

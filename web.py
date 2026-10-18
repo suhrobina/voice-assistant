@@ -23,12 +23,12 @@ import time
 from http import HTTPStatus
 from pathlib import Path
 
-from RealtimeTTS import KokoroEngine, TextToAudioStream
+from RealtimeTTS import TextToAudioStream
 from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from assistant import (BARGE_IN, FOLLOW_UP, LLM_MODEL, PLAY_OPTIONS, TTS_SPEED, VOICE,
+from assistant import (BARGE_IN, FOLLOW_UP, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
                        stop_llm, warm_up_llm)
 from assistant import set_wake_mode as set_recorder_wake_mode
@@ -210,7 +210,7 @@ async def main():
     global tts, recorder
     print("Loading voice...", flush=True)
     # "end" = all audio of the reply was sent; the phone answers "played" when it's done playing
-    tts = TextToAudioStream(KokoroEngine(voice=VOICE, default_speed=TTS_SPEED), muted=True,
+    tts = TextToAudioStream(make_voice(), muted=True,
                             on_audio_stream_stop=lambda: send({"type": "end"}))
 
     print("Loading ears...", flush=True)
