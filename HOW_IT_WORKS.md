@@ -93,7 +93,7 @@ for the wake word, detected offline by
 - Phone mode: the phone plays audio after the server has finished generating it, so the page reports
   `played` when it's done speaking and the server opens the window then. The server also sends the
   wake state (`listening` / `window` / `sleep`) so the page can chime and show it.
-- Switch at runtime: console `/wake` command, phone **👂 icon** in the top bar (both toggle `recorder.use_wake_words`).
+- Switch at runtime: console `/wake` command, phone **👂 button** next to the talk button (both toggle `recorder.use_wake_words`).
 - Settings: `WAKE_WORD` (`""` = off), `FOLLOW_UP`, `WAKE_SENSITIVITY`.
 
 ## Barge-in (interrupting)

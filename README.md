@@ -18,7 +18,7 @@ You can also **type** a message in the console and press Enter — voice keeps w
 - Start without the wake word feature at all: `WAKE_WORD= ./run.sh`
 - Follow-up window: `FOLLOW_UP=15 ./run.sh` (seconds), or `FOLLOW_UP=0` to need "Hey Jarvis" every time.
 - Too many false wake-ups → `WAKE_SENSITIVITY=0.7`; not reacting → `0.3` (default 0.5).
-- Phone mode: the **👂 wake word icon** in the top bar picks the mode — off = regular talking
+- Phone mode: the **👂 wake word button** next to the talk button picks the mode — off = regular talking
   (default), on = say "Hey Jarvis" first (the phone chimes and shows the state at the top). The page remembers it.
 
 **Using speakers instead of headphones?** Start it with interruption turned off,
@@ -79,7 +79,7 @@ knows it next time — in both normal and phone mode.
 
 - **Forget something:** just say it — "Forget about my dog".
 - **See or edit what it knows:**
-  - Phone: the **🧠 button** in the top bar opens the list — ✕ deletes a fact, the field adds one,
+  - Phone: the **🧠 button** under the text field opens the list — ✕ deletes a fact, the field adds one,
     "Forget everything" clears it. When it learns something, a grey *🧠 Remembered: …* line appears in the chat.
   - Console: `/memory` lists the facts, `/remember Has a cat named Luna` adds one, `/forget 3` deletes
     fact 3, `/forget all` clears everything.
@@ -114,7 +114,7 @@ Each file in `profiles/` is a personality with its own prompt, voice and setting
 | `chef` | cooking helper, one step at a time | am_michael |
 | `storyteller` | tells stories, slower and calmer | af_bella |
 
-- **Switch:** console `/profile teacher` (`/profiles` lists them); phone: the menu in the top bar.
+- **Switch:** console `/profile teacher` (`/profiles` lists them); phone: the profile button under the text field.
 - **Remembered:** it starts with the profile you chose last (saved in `memory/profile.txt`). If that profile file was deleted, it starts with `default`.
 - **Force one at startup:** `PROFILE=chef ./run.sh`, or `PROFILE=chef` in `local.env` (this wins over the remembered one).
 - **Make your own:** copy `profiles/_template.md` (it explains every setting) to e.g. `profiles/coach.md` and edit it.

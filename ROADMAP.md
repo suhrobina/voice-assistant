@@ -13,7 +13,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Two GPUs: `qwen3:8b` + Whisper (`int8_float16`) on the RTX 3070 Ti (Ollama pinned to it), Kokoro + desktop on the Quadro T1000 (BIOS primary display). Smarter model, no extra delay. Settings in `local.env`
 - [x] Fully offline after the first start: `HF_HUB_OFFLINE=1` in `run.sh` (verified with the internet blocked)
 - [x] Conversation log: `conversations/YYYY-MM-DD.md`, both modes, spoken/typed marked; `LOG=0` turns it off
-- [x] Phone page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; wake word toggle as a 👂 icon in the top bar
+- [x] Phone page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; composer card with 🧠 memory and profile buttons under the text (Claude app style); 👂 wake word toggle next to the talk button
 - [x] Profiles: `profiles/*.md` (prompt + voice + settings), switch with `/profile` or the phone menu; shared memory, fresh conversation on switch; last choice remembered across restarts
 - [x] Memory on the phone and console: 🧠 panel (list, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
