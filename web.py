@@ -19,6 +19,7 @@ import socket
 import ssl
 import subprocess
 import threading
+import time
 from http import HTTPStatus
 from pathlib import Path
 
@@ -27,9 +28,10 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from assistant import (BARGE_IN, LLM_MODEL, PLAY_OPTIONS, TTS_SPEED, VOICE, listen,
-                       llm_stream, make_recorder, print_memory_status, stop_llm,
-                       warm_up_llm)
+from assistant import (BARGE_IN, FOLLOW_UP, LLM_MODEL, PLAY_OPTIONS, TTS_SPEED, VOICE,
+                       WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
+                       stop_llm, warm_up_llm)
+from assistant import set_wake_mode as set_recorder_wake_mode
 
 # ---------------- CONFIG ----------------
 HOST = os.getenv("HOST", "0.0.0.0")            # 0.0.0.0 = reachable from your network
@@ -52,6 +54,7 @@ class Client:
     queue = None
     loop = None
     muted = False  # set by the page: True = text-only replies (talking is off)
+    wake_mode = False  # set by the page's switch: require the wake word
 
 
 inbox = queue.Queue()  # ("voice" | "typed", text) from the mic and the text box
@@ -75,6 +78,30 @@ def interrupt(force=False):
         tts.stop()
     # The phone may still be playing buffered audio even if the server is done
     send({"type": "stop"})
+
+
+def wake_state(state):
+    """Tell the page: "listening" (wake word heard), "window" (follow-up), "sleep"."""
+    send({"type": "wake", "state": state})
+
+
+def set_wake_mode(on):
+    """The page's switch: regular talking (off) or "Hey Jarvis" first (on)."""
+    Client.wake_mode = set_recorder_wake_mode(recorder, on)
+    print(f"\n📱  Wake word {'on' if Client.wake_mode else 'off'}", flush=True)
+
+
+def open_follow_up():
+    """The phone finished playing a reply: talk without the wake word for FOLLOW_UP s."""
+    if Client.wake_mode and FOLLOW_UP > 0:
+        recorder.wake_word_activation_delay = FOLLOW_UP
+        recorder.listen_start = time.time()
+        wake_state("window")
+
+
+def close_follow_up():
+    recorder.wake_word_activation_delay = 0
+    wake_state("sleep")
 
 
 def drain(tokens):
@@ -114,6 +141,7 @@ async def handler(ws):
     queue = asyncio.Queue()
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n📱  Phone connected", flush=True)
+    send({"type": "hello", "wake": WAKE_WORD.replace("_", " ")})
     sender = asyncio.create_task(pump(ws, queue))
     try:
         async for msg in ws:
@@ -128,6 +156,10 @@ async def handler(ws):
                 inbox.put(("typed", str(m["text"]).strip()))
             elif m.get("type") == "mute":
                 Client.muted = bool(m.get("value"))
+            elif m.get("type") == "wake_mode":
+                set_wake_mode(m.get("value"))
+            elif m.get("type") == "played":  # the phone finished speaking the reply
+                open_follow_up()
     finally:
         sender.cancel()
         if Client.ws is ws:
@@ -177,10 +209,16 @@ def local_ip():
 async def main():
     global tts, recorder
     print("Loading voice...", flush=True)
-    tts = TextToAudioStream(KokoroEngine(voice=VOICE, default_speed=TTS_SPEED), muted=True)
+    # "end" = all audio of the reply was sent; the phone answers "played" when it's done playing
+    tts = TextToAudioStream(KokoroEngine(voice=VOICE, default_speed=TTS_SPEED), muted=True,
+                            on_audio_stream_stop=lambda: send({"type": "end"}))
 
     print("Loading ears...", flush=True)
-    recorder = make_recorder(interrupt, use_microphone=False)
+    recorder = make_recorder(interrupt, on_wake=lambda: wake_state("listening"),
+                             use_microphone=False)
+    if WAKE_WORD:
+        recorder.on_wakeword_timeout = close_follow_up
+    set_wake_mode(False)  # until the page says otherwise (its switch defaults to off)
 
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()

@@ -21,7 +21,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip wheel
 # Exact, tested versions (incl. torch cu124 and the CUDA libraries) — see requirements.txt
-pip install -r requirements.txt
+# --no-deps: the list is complete; see the note at the top of requirements.txt
+pip install --no-deps -r requirements.txt
 
 chmod +x run.sh
 echo

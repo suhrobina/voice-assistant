@@ -8,12 +8,17 @@ Local low-latency voice assistant
 
 Everything runs offline on your GPU. Tune via environment variables (see CONFIG).
 """
+import io
 import json
 import os
 import queue
+import subprocess
 import sys
 import threading
+import time
+import wave
 
+import numpy as np
 import requests
 from RealtimeSTT import AudioToTextRecorder
 from RealtimeTTS import KokoroEngine, TextToAudioStream
@@ -35,6 +40,9 @@ SILENCE = float(os.getenv("SILENCE", "0.45"))            # seconds of silence = 
 BARGE_IN = os.getenv("BARGE_IN", "1") == "1"             # talk over it to interrupt; set 0 when using speakers
 MEMORY = os.getenv("MEMORY", "1") == "1"                 # long-term memory about you; 0 = off
 MEMORY_FILE = os.getenv("MEMORY_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.md"))
+WAKE_WORD = os.getenv("WAKE_WORD", "hey_jarvis")        # say it before talking; "" = off (always listening)
+FOLLOW_UP = float(os.getenv("FOLLOW_UP", "8"))           # seconds after a reply to talk without the wake word; 0 = always need it
+WAKE_SENSITIVITY = float(os.getenv("WAKE_SENSITIVITY", "0.5"))  # 0..1, higher = stricter (fewer false wake-ups)
 # SYSTEM_PROMPT = the AI's instructions; edit the text below to change its personality.
 # You can add: a name ("You are Nova..."), its character (funny, calm, formal),
 # facts about you (your name, job, interests), how it should talk, and rules.
@@ -118,7 +126,51 @@ def warm_up_llm():
     )
 
 
-def make_recorder(interrupt, **extra):
+def chime():
+    """Short soft tone meaning "I'm listening" (played with aplay, silent if missing)."""
+    rate = 24000
+    t = np.arange(int(rate * 0.12)) / rate
+    tone = (0.25 * np.sin(2 * np.pi * 880 * t) * np.hanning(len(t)) * 32767).astype(np.int16)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(tone.tobytes())
+    try:
+        subprocess.Popen(["aplay", "-q", "-"], stdin=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL).communicate(buf.getvalue())
+    except OSError:
+        pass
+
+
+def wake_word_options(wake_word, on_wake=None):
+    """Extra recorder settings for wake word mode (openWakeWord, offline).
+    on_wake runs once per wake-up; default plays the chime on this PC."""
+    if not wake_word:
+        return {}
+    last = [0.0]
+
+    def detected():
+        # fires for every audio chunk while the wake word is heard; react once
+        if time.time() - last[0] > 4:
+            print("\n👂  Listening...", flush=True)
+            threading.Thread(target=on_wake or chime, daemon=True).start()
+        last[0] = time.time()
+
+    return dict(
+        wakeword_backend="oww",
+        openwakeword_model_paths=wake_word,   # only this model, not all built-in ones
+        wake_words=wake_word,
+        wake_words_sensitivity=WAKE_SENSITIVITY,
+        wake_word_activation_delay=0,          # wake word needed right away; main() opens the
+                                               # FOLLOW_UP window only after a reply
+        wake_word_timeout=5,                   # after the wake word, wait this long for speech
+        on_wakeword_detected=detected,
+    )
+
+
+def make_recorder(interrupt, wake_word=WAKE_WORD, on_wake=None, **extra):
     """Ears. `extra` overrides defaults (web.py passes use_microphone=False)."""
     return AudioToTextRecorder(
         model=STT_MODEL,
@@ -136,6 +188,7 @@ def make_recorder(interrupt, **extra):
         early_transcription_on_silence=0.2,  # start transcribing before silence timer ends
         on_vad_start=interrupt,               # barge-in (fires on actual speech)
         on_recording_start=interrupt,
+        **wake_word_options(wake_word, on_wake),
         **extra,
     )
 
@@ -169,6 +222,21 @@ def read_keyboard(inbox):
             inbox.put(("typed", line.strip()))
 
 
+def set_wake_mode(recorder, on):
+    """Switch between regular talking and wake word mode at runtime."""
+    recorder.use_wake_words = bool(on and WAKE_WORD)
+    recorder.wake_word_activation_delay = 0
+    recorder.wakeword_detected = False
+    return recorder.use_wake_words
+
+
+COMMANDS_HELP = """Commands (type and press Enter):
+  /wake        switch the wake word on/off
+  /wake on     say the wake word before talking
+  /wake off    regular talking: answers everything it hears
+  /help        show this list"""
+
+
 def main():
     print("Loading voice...", flush=True)
     engine = KokoroEngine(voice=VOICE, default_speed=TTS_SPEED)
@@ -183,21 +251,70 @@ def main():
     print("Loading ears...", flush=True)
     recorder = make_recorder(interrupt)
 
+    wake_name = WAKE_WORD.replace("_", " ")
+
+    def open_follow_up():
+        # After a reply has finished playing, allow FOLLOW_UP seconds of talk
+        # without the wake word (timed from now, not from when listening resumed)
+        if recorder.use_wake_words and FOLLOW_UP > 0:
+            recorder.wake_word_activation_delay = FOLLOW_UP
+            recorder.listen_start = time.time()
+
+    def close_follow_up():
+        recorder.wake_word_activation_delay = 0
+        if recorder.use_wake_words:
+            print(f"\n💤  Say \"{wake_name}\" to talk", flush=True)
+
+    def mode_line():
+        if recorder.use_wake_words:
+            return f"💤  Wake word on: say \"{wake_name}\", then talk"
+        return "🎤  Wake word off: just talk"
+
+    def command(text):
+        """Typed lines starting with "/" are commands, not messages for the AI."""
+        words = text.lower().split()
+        if words[0] == "/wake":
+            arg = words[1] if len(words) > 1 else ("off" if recorder.use_wake_words else "on")
+            if arg not in ("on", "off"):
+                print("Usage: /wake, /wake on or /wake off", flush=True)
+            elif arg == "on" and not WAKE_WORD:
+                print("The wake word is disabled (started with WAKE_WORD=). "
+                      "Restart without it to use /wake.", flush=True)
+            else:
+                set_wake_mode(recorder, arg == "on")
+                print(mode_line(), flush=True)
+        elif words[0] in ("/help", "/?"):
+            print(COMMANDS_HELP, flush=True)
+        else:
+            print(f"Unknown command {words[0]}. Type /help", flush=True)
+
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
     print_memory_status()
     tts.feed("Ready.").play()
+    if WAKE_WORD:  # hooked up after "Ready." so startup doesn't open a window
+        tts.on_audio_stream_stop = open_follow_up
+        recorder.on_wakeword_timeout = close_follow_up
 
     inbox = queue.Queue()
     threading.Thread(target=listen, args=(recorder, inbox), daemon=True).start()
     threading.Thread(target=read_keyboard, args=(inbox,), daemon=True).start()
 
-    print("\n🎤  Speak any time, or type a message and press Enter. Ctrl+C to quit.\n")
+    if WAKE_WORD:
+        print(f"\n{mode_line()}, or type a message and press Enter.")
+        print("    Type /wake to turn the wake word on/off, /help for all commands. "
+              "Ctrl+C to quit.\n", flush=True)
+    else:
+        print("\n🎤  Speak any time, or type a message and press Enter.")
+        print("    Type /help for commands. Ctrl+C to quit.\n", flush=True)
     try:
         while True:
             try:
                 source, text = inbox.get(timeout=0.5)  # timeout keeps Ctrl+C responsive
             except queue.Empty:
+                continue
+            if source == "typed" and text.startswith("/"):
+                command(text)
                 continue
             interrupt(force=source == "typed")
             if source == "voice":

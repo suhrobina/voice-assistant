@@ -9,8 +9,17 @@ unzip voice-assistant.zip && cd voice-assistant
 bash setup.sh      # once, ~10 min (downloads models)
 ./run.sh
 ```
-Wait for "Ready.", then just talk. Talk over it to interrupt.
+Wait for "Ready.", then say **"Hey Jarvis"** — a short chime means it's listening — and talk.
+For 8 seconds after each answer you can keep talking without the wake word. Say "Hey Jarvis" to interrupt.
 You can also **type** a message in the console and press Enter — voice keeps working at the same time.
+
+**Wake word settings:**
+- Switch while it's running: type `/wake` (or `/wake on`, `/wake off`) and press Enter. `/help` lists all commands.
+- Start without the wake word feature at all: `WAKE_WORD= ./run.sh`
+- Follow-up window: `FOLLOW_UP=15 ./run.sh` (seconds), or `FOLLOW_UP=0` to need "Hey Jarvis" every time.
+- Too many false wake-ups → `WAKE_SENSITIVITY=0.7`; not reacting → `0.3` (default 0.5).
+- Phone mode: the **Wake word** switch under the 🎤 button picks the mode — off = regular talking
+  (default), on = say "Hey Jarvis" first (the phone chimes and shows the state at the top). The page remembers it.
 
 **Using speakers instead of headphones?** Start it with interruption turned off,
 otherwise the assistant hears its own voice and keeps cutting itself off:

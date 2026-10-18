@@ -9,11 +9,11 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Docs: README, HOW_IT_WORKS, comments on every setting in `assistant.py`
 - [x] Typed messages: console (type + Enter) and web (text box, works without the mic; replies are spoken only while talking is on)
 - [x] Pinned package versions: `requirements.txt` (all 136 packages, verified in a fresh environment), used by `setup.sh`
+- [x] Wake word "Hey Jarvis" (openWakeWord, offline) with chime and 8 s follow-up window; `WAKE_WORD=` turns it off; works in console and phone mode (switch modes: `/wake` in the console, a switch on the phone)
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities
 - [ ] **Tools: time, date, timers, reminders.** "Remind me in 20 minutes to check the oven." Small models don't even know today's date without this.
-- [ ] **Wake word** ("Hey Nova…") with openWakeWord, so it ignores the TV and other people. Most useful if it runs all day.
 
 ## 🛠️ Let it do things (more tools)
 - [ ] Weather and news ("Do I need an umbrella tomorrow?")
@@ -48,6 +48,7 @@ Available: RTX 3070 Ti 8 GB (current), Quadro T1000 4 GB, Titan Xp 12 GB.
 
 ## 🚀 Bigger features
 - [ ] Vision: send a photo from the phone, ask "What's on this picture?" (`qwen2.5-vl`, needs more GPU memory)
+- [ ] Custom wake word: train an openWakeWord model for any phrase (~1 h, free online notebook), or use Whisper to react to a name ("Nova, …") with no training
 - [ ] Remote access with Tailscale: use the assistant from anywhere, not just home Wi-Fi
 
 ## 💤 Parked (decided not now)

@@ -75,6 +75,27 @@ Because each step starts before the previous one finishes, you hear an answer ab
 | First audio (Kokoro) | ~0.1 s |
 | **Total until first sound** | **~0.7 s** |
 
+## Wake word ("Hey Jarvis")
+
+In normal mode, and in phone mode when the page's **Wake word** switch is on, the ears first wait
+for the wake word, detected offline by
+**openWakeWord** (a tiny model, runs on the CPU):
+
+```
+ 💤 waiting ──"Hey Jarvis"──► 👂 chime, listening ──► you talk ──► reply
+     ▲                                                               │
+     └──── after FOLLOW_UP s of silence ◄── free-talk window ◄───────┘
+                                            (starts when the reply finishes playing)
+```
+
+- While waiting, voice detection is off — the TV or other people can't start a turn or interrupt a reply.
+- Saying "Hey Jarvis" during a reply interrupts it (barge-in).
+- Phone mode: the phone plays audio after the server has finished generating it, so the page reports
+  `played` when it's done speaking and the server opens the window then. The server also sends the
+  wake state (`listening` / `window` / `sleep`) so the page can chime and show it.
+- Switch at runtime: console `/wake` command, phone **Wake word** switch (both toggle `recorder.use_wake_words`).
+- Settings: `WAKE_WORD` (`""` = off), `FOLLOW_UP`, `WAKE_SENSITIVITY`.
+
 ## Barge-in (interrupting)
 
 If you start talking while the assistant is speaking, Silero VAD notices it and calls `interrupt()`, which:
