@@ -32,6 +32,8 @@ from assistant import (BARGE_IN, FOLLOW_UP, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
                        stop_llm, warm_up_llm)
 from assistant import set_wake_mode as set_recorder_wake_mode
+from assistant import apply_profile, list_profiles, load_profile
+import assistant  # for the current profile (assistant.profile changes on switch)
 
 # ---------------- CONFIG ----------------
 HOST = os.getenv("HOST", "0.0.0.0")            # 0.0.0.0 = reachable from your network
@@ -45,6 +47,7 @@ HERE = Path(__file__).parent
 INDEX_HTML = (HERE / "web" / "index.html").read_bytes()
 
 tts = None
+voice = None  # the Kokoro engine inside tts (voice/speed change with the profile)
 recorder = None
 
 
@@ -117,6 +120,12 @@ def conversation():
         interrupt(force=True)
         if text_reply:
             text_reply.join()
+        if source == "profile":  # the page's profile menu
+            if apply_profile(text, voice):
+                p = assistant.profile
+                print(f"\n🎭  {p['label']}: fresh conversation, memory kept", flush=True)
+                send({"type": "profile", "name": p["name"], "label": p["label"]})
+            continue
         print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
         send({"type": "user", "text": text})
         send({"type": "reply"})
@@ -142,7 +151,9 @@ async def handler(ws):
     queue = asyncio.Queue()
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n📱  Phone connected", flush=True)
-    send({"type": "hello", "wake": WAKE_WORD.replace("_", " ")})
+    send({"type": "hello", "wake": WAKE_WORD.replace("_", " "),
+          "profile": assistant.profile["name"],
+          "profiles": [{"name": n, "label": load_profile(n)["label"]} for n in list_profiles()]})
     sender = asyncio.create_task(pump(ws, queue))
     try:
         async for msg in ws:
@@ -157,6 +168,8 @@ async def handler(ws):
                 inbox.put(("typed", str(m["text"]).strip()))
             elif m.get("type") == "mute":
                 Client.muted = bool(m.get("value"))
+            elif m.get("type") == "profile":
+                inbox.put(("profile", str(m.get("name", ""))))
             elif m.get("type") == "wake_mode":
                 set_wake_mode(m.get("value"))
             elif m.get("type") == "played":  # the phone finished speaking the reply
@@ -208,10 +221,11 @@ def local_ip():
 
 
 async def main():
-    global tts, recorder
+    global tts, voice, recorder
     print("Loading voice...", flush=True)
+    voice = make_voice()
     # "end" = all audio of the reply was sent; the phone answers "played" when it's done playing
-    tts = TextToAudioStream(make_voice(), muted=True,
+    tts = TextToAudioStream(voice, muted=True,
                             on_audio_stream_stop=lambda: send({"type": "end"}))
 
     print("Loading ears...", flush=True)

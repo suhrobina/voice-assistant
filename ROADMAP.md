@@ -5,7 +5,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 ## ✅ Done
 - [x] Working local assistant: Whisper → Ollama → Kokoro, fixed missing packages and barge-in
 - [x] Phone mode: `./run.sh --web`, works with Bluetooth headphones
-- [x] Long-term memory: `memory.md`, can be turned off with `MEMORY=0`
+- [x] Long-term memory: `memory/memory.md`, can be turned off with `MEMORY=0`
 - [x] Docs: README, HOW_IT_WORKS, comments on every setting in `assistant.py`
 - [x] Typed messages: console (type + Enter) and web (text box, works without the mic; replies are spoken only while talking is on)
 - [x] Pinned package versions: `requirements.txt` (all 136 packages, verified in a fresh environment), used by `setup.sh`
@@ -14,6 +14,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Fully offline after the first start: `HF_HUB_OFFLINE=1` in `run.sh` (verified with the internet blocked)
 - [x] Conversation log: `conversations/YYYY-MM-DD.md`, both modes, spoken/typed marked; `LOG=0` turns it off
 - [x] Phone page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; wake word toggle as a 👂 icon in the top bar
+- [x] Profiles: `profiles/*.md` (prompt + voice + settings), switch with `/profile` or the phone menu; shared memory, fresh conversation on switch; last choice remembered across restarts
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities

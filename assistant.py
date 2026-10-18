@@ -12,6 +12,7 @@ import io
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -45,13 +46,16 @@ SENTENCE_PAUSE = float(os.getenv("SENTENCE_PAUSE", "0.2"))  # seconds of breath 
 SILENCE = float(os.getenv("SILENCE", "0.45"))            # seconds of silence = end of turn
 BARGE_IN = os.getenv("BARGE_IN", "1") == "1"             # talk over it to interrupt; set 0 when using speakers
 MEMORY = os.getenv("MEMORY", "1") == "1"                 # long-term memory about you; 0 = off
-MEMORY_FILE = os.getenv("MEMORY_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.md"))
+MEMORY_FILE = os.getenv("MEMORY_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory", "memory.md"))
 LOG = os.getenv("LOG", "1") == "1"                       # save conversations to LOG_DIR (one file per day); 0 = off
 LOG_DIR = os.getenv("LOG_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "conversations"))
 WAKE_WORD = os.getenv("WAKE_WORD", "hey_jarvis")        # say it before talking; "" = off (always listening)
 FOLLOW_UP = float(os.getenv("FOLLOW_UP", "8"))           # seconds after a reply to talk without the wake word; 0 = always need it
 WAKE_SENSITIVITY = float(os.getenv("WAKE_SENSITIVITY", "0.5"))  # 0..1, higher = stricter (fewer false wake-ups)
-# SYSTEM_PROMPT = the AI's instructions; edit the text below to change its personality.
+PROFILE = os.getenv("PROFILE", "")                       # personality from profiles/<name>.md; "" = last one chosen
+PROFILES_DIR = os.getenv("PROFILES_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles"))
+PROFILE_FILE = os.getenv("PROFILE_FILE", os.path.join(os.path.dirname(MEMORY_FILE), "profile.txt"))  # remembers the last profile
+# SYSTEM_PROMPT = fallback instructions when there is no profile file (profiles/default.md has the same text).
 # You can add: a name ("You are Nova..."), its character (funny, calm, formal),
 # facts about you (your name, job, interests), how it should talk, and rules.
 # Keep the "short sentences, no markdown" part: every reply is read aloud.
@@ -68,9 +72,93 @@ LLM_OPTIONS = {"temperature": 0.7, "num_ctx": 4096}
 
 memory = Memory(MEMORY_FILE) if MEMORY else None
 
+# ---------------- PROFILES ----------------
+# profiles/<name>.md: optional "key: value" lines, a blank line, then the prompt.
+# Keys a profile leaves out fall back to the settings above. profiles/_template.md explains
+# every key; files starting with "_" are not profiles.
+PROFILE_KEYS = {"label": str, "voice": str, "speed": float, "pause": float,
+                "temperature": float, "model": str}
+
+
+def list_profiles():
+    if not os.path.isdir(PROFILES_DIR):
+        return []
+    return sorted(f[:-3] for f in os.listdir(PROFILES_DIR) if f.endswith(".md") and not f.startswith("_"))
+
+
+def load_profile(name):
+    """Settings + prompt of profiles/<name>.md (None if there is no such file)."""
+    p = {"name": name, "label": name.replace("_", " ").replace("-", " ").capitalize(),
+         "prompt": SYSTEM_PROMPT, "voice": VOICE, "speed": TTS_SPEED, "pause": SENTENCE_PAUSE,
+         "temperature": LLM_OPTIONS["temperature"], "model": LLM_MODEL}
+    path = os.path.join(PROFILES_DIR, f"{name}.md")
+    if not re.fullmatch(r"[\w-]+", name) or name.startswith("_") or not os.path.isfile(path):
+        return p if name == "default" else None
+    header, body = True, []
+    for line in open(path, encoding="utf-8").read().splitlines():
+        m = re.match(r"^(\w+):\s*(.+)$", line)
+        if header and m and m.group(1) in PROFILE_KEYS:
+            try:
+                p[m.group(1)] = PROFILE_KEYS[m.group(1)](m.group(2).strip())
+            except ValueError:  # e.g. "speed: fast"
+                print(f"⚠️  profiles/{name}.md: '{line}' is not a number, ignored", flush=True)
+        elif header and (not line.strip() or line.startswith("#")):
+            continue
+        else:
+            header = False
+            body.append(line)
+    p["prompt"] = "\n".join(body).strip() or p["prompt"]
+    return p
+
+
+def check_profile(p):
+    """Fall back to the normal voice/model if the profile names one that isn't there
+    (Kokoro would only fail mid-reply, Ollama on the first question)."""
+    from huggingface_hub import hf_hub_download
+    try:  # offline: finds it in the cache; online: downloads it now
+        for v in re.findall(r"[a-z]{2}_[a-z]+", p["voice"]) or [p["voice"]]:
+            hf_hub_download("hexgrad/Kokoro-82M", f"voices/{v}.pt")
+    except Exception:
+        print(f"⚠️  Profile {p['name']}: voice '{p['voice']}' not found (not downloaded? "
+              f"run once with HF_HUB_OFFLINE=0), using {VOICE}", flush=True)
+        p["voice"] = VOICE
+    try:
+        tags = requests.get(OLLAMA_URL.replace("/api/chat", "/api/tags"), timeout=5).json()
+        installed = {m["name"] for m in tags.get("models", [])}
+        if installed and p["model"] not in installed:
+            print(f"⚠️  Profile {p['name']}: model '{p['model']}' is not installed "
+                  f"(ollama pull {p['model']}), using {LLM_MODEL}", flush=True)
+            p["model"] = LLM_MODEL
+    except (requests.RequestException, ValueError):
+        pass  # Ollama not reachable; warm_up_llm will say so
+    return p
+
+
+def saved_profile():
+    try:
+        return open(PROFILE_FILE, encoding="utf-8").read().strip()
+    except OSError:
+        return ""
+
+
+def save_profile(name):
+    try:
+        os.makedirs(os.path.dirname(PROFILE_FILE), exist_ok=True)
+        with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+            f.write(name + "\n")
+    except OSError as e:
+        print(f"Could not save the profile choice: {e}", flush=True)
+
+
+# PROFILE from the environment wins; otherwise the last one chosen; a deleted one falls back to default
+PROFILE = PROFILE or saved_profile() or "default"
+profile = check_profile(load_profile(PROFILE) or load_profile("default"))
+LLM_MODEL = profile["model"]
+LLM_OPTIONS["temperature"] = profile["temperature"]
+
 
 def system_prompt():
-    return SYSTEM_PROMPT + (memory.prompt() if memory else "")
+    return profile["prompt"] + (memory.prompt() if memory else "")
 
 
 def print_memory_status():
@@ -106,7 +194,7 @@ def log_turn(source, user_text, reply, interrupted):
                 f.write(f"# Conversations {now:%Y-%m-%d}\n")
             if path not in _log_sessions:
                 _log_sessions.add(path)
-                f.write(f"\n## {now:%H:%M} new session ({LLM_MODEL})\n")
+                f.write(f"\n## {now:%H:%M} new session ({profile['label']}, {LLM_MODEL})\n")
             typed = " (typed)" if source == "typed" else ""
             note = " *(interrupted)*" if interrupted else ""
             f.write(f"\n**{now:%H:%M} You{typed}:** {user_text}\n\n"
@@ -238,7 +326,7 @@ PLAY_OPTIONS = dict(
     # natural intonation, but it starts speaking a bit later.
     minimum_sentence_length=8,
     minimum_first_fragment_length=8,
-    sentence_silence_duration=SENTENCE_PAUSE,
+    sentence_silence_duration=profile["pause"],
     comma_silence_duration=0.05,       # only when a piece ends at a comma (first clause)
     buffer_threshold_seconds=0.0,
     log_synthesized_text=False,
@@ -248,7 +336,43 @@ PLAY_OPTIONS = dict(
 def make_voice():
     """Kokoro on KOKORO_GPU (it loads onto the current GPU; its work follows the model)."""
     with torch.cuda.device(KOKORO_GPU):
-        return KokoroEngine(voice=VOICE, default_speed=TTS_SPEED)
+        return KokoroEngine(voice=profile["voice"], default_speed=profile["speed"])
+
+
+def set_profile_voice(engine):
+    """Apply the profile's voice and speed. A voice in another accent needs a new Kokoro
+    pipeline; build it now on KOKORO_GPU (lazily it would land on the default GPU)."""
+    with torch.cuda.device(KOKORO_GPU):
+        engine.set_voice(profile["voice"])
+        engine._get_pipeline(engine.current_lang)
+    engine.set_speed(profile["speed"])
+
+
+def apply_profile(name, engine=None):
+    """Switch personality: settings, voice, and a fresh conversation (memory stays shared)."""
+    global profile, LLM_MODEL
+    new = load_profile(name)
+    if not new:
+        return None
+    check_profile(new)
+    old_model = LLM_MODEL
+    profile, LLM_MODEL = new, new["model"]
+    save_profile(name)  # start with it next time
+    LLM_OPTIONS["temperature"] = new["temperature"]
+    PLAY_OPTIONS["sentence_silence_duration"] = new["pause"]
+    if engine:
+        set_profile_voice(engine)
+    history[:] = [{"role": "system", "content": system_prompt()}]
+    _log_sessions.clear()  # next log entry starts a new session header
+    if LLM_MODEL != old_model:  # free the GPU for the new model, then load it
+        try:
+            requests.post(OLLAMA_URL.replace("/api/chat", "/api/generate"),
+                          json={"model": old_model, "keep_alive": 0}, timeout=30)
+        except requests.RequestException:
+            pass
+        print(f"Loading {LLM_MODEL}...", flush=True)
+        warm_up_llm()
+    return new
 
 
 def listen(recorder, inbox):
@@ -278,6 +402,8 @@ COMMANDS_HELP = """Commands (type and press Enter):
   /wake        switch the wake word on/off
   /wake on     say the wake word before talking
   /wake off    regular talking: answers everything it hears
+  /profiles    list the profiles (personalities)
+  /profile X   switch to profile X (fresh conversation, memory stays)
   /help        show this list"""
 
 
@@ -327,6 +453,19 @@ def main():
             else:
                 set_wake_mode(recorder, arg == "on")
                 print(mode_line(), flush=True)
+        elif words[0] == "/profiles":
+            for name in list_profiles():
+                mark = "▶" if name == profile["name"] else " "
+                print(f" {mark} {name:12s} {load_profile(name)['label']}", flush=True)
+        elif words[0] == "/profile":
+            if len(words) < 2:
+                print(f"Profile: {profile['label']}. Usage: /profile NAME (see /profiles)", flush=True)
+            elif apply_profile(words[1], engine):
+                print(f"🎭  {profile['label']}: fresh conversation, memory kept", flush=True)
+                tts.feed(f"{profile['label']}.")
+                tts.play_async(**PLAY_OPTIONS)
+            else:
+                print(f"No profile '{words[1]}'. Type /profiles", flush=True)
         elif words[0] in ("/help", "/?"):
             print(COMMANDS_HELP, flush=True)
         else:
@@ -335,6 +474,8 @@ def main():
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
     print_memory_status()
+    print(f"🎭  Profile: {profile['label']}" + ("" if profile["name"] == PROFILE else
+          f" (profiles/{PROFILE}.md is gone)"), flush=True)
     tts.feed("Ready.").play()
     if WAKE_WORD:  # hooked up after "Ready." so startup doesn't open a window
         tts.on_audio_stream_stop = open_follow_up

@@ -74,18 +74,18 @@ This PC: **RTX 3070 Ti** runs the AI model (`qwen3:8b`) + Whisper; **Quadro T100
 
 ## Memory (remembers you between sessions)
 On by default. When you share something about yourself ("My name is…", "I have a dog named Rex",
-"Remember that my sister's birthday is May 5th"), it's saved to `memory.md` and the assistant
+"Remember that my sister's birthday is May 5th"), it's saved to `memory/memory.md` and the assistant
 knows it next time — in both normal and phone mode.
 
 - **Forget something:** just say it — "Forget about my dog".
-- **See or edit what it knows:** open `memory.md` — one fact per line, edit or delete freely
+- **See or edit what it knows:** open `memory/memory.md` — one fact per line, edit or delete freely
   (restart the assistant afterwards).
-- **Turn off:** `MEMORY=0 ./run.sh` (or `MEMORY=0 ./run.sh --web`). Then `memory.md` is
+- **Turn off:** `MEMORY=0 ./run.sh` (or `MEMORY=0 ./run.sh --web`). Then `memory/memory.md` is
   neither read nor written.
-- **Start over:** delete `memory.md`.
+- **Start over:** delete `memory/memory.md`.
 - Questions and small talk are never saved. Small models occasionally save something odd —
   just delete that line. `qwen2.5:7b` picks facts more accurately.
-- Stays on your server; `memory.md` is excluded from git.
+- Stays on your server; `memory/memory.md` is excluded from git.
 
 ## Tips for the smoothest feel
 - **Use headphones.** Otherwise the assistant hears itself and interrupts. Without headphones run: `BARGE_IN=0 ./run.sh`
@@ -98,6 +98,43 @@ knows it next time — in both normal and phone mode.
 
 ## Expected latency on a 3070 Ti
 About 0.5–0.9 s from when you stop talking to first sound. Roughly: silence detection ~0.45 s, transcription ~0.1 s, first LLM words ~0.1 s, first audio ~0.1 s.
+
+## Profiles (personalities)
+Each file in `profiles/` is a personality with its own prompt, voice and settings. Memory is shared
+(every profile knows you); switching starts a fresh conversation.
+
+| Profile | What it does | Voice |
+|---|---|---|
+| `default` | the everyday assistant | af_heart |
+| `teacher` | English teacher: gently corrects your grammar, then answers | bf_emma (British) |
+| `chef` | cooking helper, one step at a time | am_michael |
+| `storyteller` | tells stories, slower and calmer | af_bella |
+
+- **Switch:** console `/profile teacher` (`/profiles` lists them); phone: the menu in the top bar.
+- **Remembered:** it starts with the profile you chose last (saved in `memory/profile.txt`). If that profile file was deleted, it starts with `default`.
+- **Force one at startup:** `PROFILE=chef ./run.sh`, or `PROFILE=chef` in `local.env` (this wins over the remembered one).
+- **Make your own:** copy `profiles/_template.md` (it explains every setting) to e.g. `profiles/coach.md` and edit it.
+  The file name is the profile name (letters, digits, `_`, `-`); files starting with `_` are not profiles. Example:
+  ```
+  label: Fitness coach
+  voice: am_michael
+  speed: 1.05
+  temperature: 0.6
+
+  You are an energetic fitness coach. ... (the prompt; keep "spoken aloud: short sentences, no markdown")
+  ```
+  Settings at the top, one blank line, then the prompt. All settings are optional; left out = the normal value:
+
+  | Setting | What it does | Values | Default |
+  |---|---|---|---|
+  | `label` | name in the phone menu, spoken on switch | any text | file name |
+  | `voice` | Kokoro voice: 1st letter `a` American / `b` British, 2nd `f` female / `m` male | downloaded: `af_heart`, `af_bella`, `am_michael`, `bf_emma`; others (`af_sarah`, `am_adam`, `bm_george`…) need one run with `HF_HUB_OFFLINE=0` | `af_heart` |
+  | `speed` | speaking speed (0.9 calmer, 1.1 faster) | 0.8 – 1.2 | 1.0 |
+  | `pause` | seconds of silence between sentences | 0 – 0.5 | 0.2 |
+  | `temperature` | creativity (0.3 focused, 0.9 lively) | 0.0 – 1.0 | 0.7 |
+  | `model` | AI model; a different one takes ~20–60 s to load on every switch | installed: `qwen3:8b`, `qwen2.5:7b`, `llama3.2:3b` (`ollama list`) | `LLM_MODEL` |
+
+  A wrong value (not a number, a voice or model that isn't there) is skipped with a ⚠️ warning and the normal value is used.
 
 ## Conversation log
 Every conversation is saved to `conversations/YYYY-MM-DD.md` (one Markdown file per day), in both

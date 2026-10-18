@@ -127,9 +127,9 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
         └─► in the background, after the reply is generated:
               is it about you? ("I", "my", "we"… or "remember"/"forget"; questions skipped)
                 └─► the AI extracts facts as JSON  →  {"add": ["Has a dog named Rex"], "remove": []}
-                      └─► saved to memory.md, and added to the current conversation
+                      └─► saved to memory/memory.md, and added to the current conversation
 
- Next start: facts from memory.md are added to the system prompt → it knows you from the first word.
+ Next start: facts from memory/memory.md are added to the system prompt → it knows you from the first word.
 ```
 
 - It uses the same AI model and settings, so nothing extra is loaded into GPU memory.
@@ -154,9 +154,11 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 | File | Role |
 |---|---|
 | `assistant.py` | Connects ears, brain and voice; runs the conversation loop |
-| `memory.py` | Long-term memory: extracts facts about you and keeps them in `memory.md` |
+| `profiles/` | Personalities: settings + prompt per file; switch with `/profile` or the phone menu |
+| `memory.py` | Long-term memory: extracts facts about you and keeps them in `memory/memory.md` |
 | `conversations/` | Daily Markdown logs of every exchange (`LOG=0` = off; not in git) |
-| `memory.md` | What the assistant remembers about you (plain text, created automatically, not in git) |
+| `memory/memory.md` | What the assistant remembers about you (plain text, created automatically, not in git) |
+| `memory/profile.txt` | The last profile you chose, used on the next start |
 | `web.py` | Phone mode (`./run.sh --web`): same loop, but audio comes from / goes to a web page over a WebSocket |
 | `web/index.html` | The phone page: records the mic (16 kHz), plays the replies (24 kHz), shows the chat |
 | `certs/` | Self-signed HTTPS certificate, created on first `--web` start (browsers need HTTPS for the mic) |

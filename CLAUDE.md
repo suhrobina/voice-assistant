@@ -19,7 +19,7 @@ VOICE=am_michael LLM_MODEL=qwen2.5:7b MEMORY=0 ./run.sh   # all config is env va
 Always launch via `run.sh`: it sets `LD_LIBRARY_PATH` to the pip-installed cuBLAS/cuDNN, without which faster-whisper fails.
 
 There is no test suite or linter. Changes have been verified with throwaway scripts (keep them in the scratchpad, not the repo):
-- **Brain/memory without audio:** `import assistant` and consume `assistant.llm_stream("...")`; set `MEMORY_FILE` to a scratch path first so the user's real `memory.md` isn't touched.
+- **Brain/memory without audio:** `import assistant` and consume `assistant.llm_stream("...")`; set `MEMORY_FILE` to a scratch path first (real file: `memory/memory.md`) so the user's real `memory.md` isn't touched.
 - **Phone mode without a phone:** start `./run.sh --web`, connect a `websockets` client to `wss://localhost:8443/ws` (cert verification off), send 16 kHz s16le PCM (e.g. `espeak-ng … | ffmpeg -ar 16000 -ac 1 -f s16le -`) or `{"type":"text","text":…}`, and collect JSON events + 24 kHz PCM audio.
 - **Console typing:** `(sleep 45; echo "question") | timeout 75 ./run.sh`.
 - **Voice changes:** render WAVs with `TextToAudioStream(..., muted=True).play(output_wavfile=...)` and let the user compare by ear.
@@ -44,7 +44,8 @@ There is no test suite or linter. Changes have been verified with throwaway scri
 - Browsers require HTTPS for the mic, hence the self-signed cert. The page has no auth and binds `0.0.0.0`.
 - `requirements.txt` is a full `pip freeze` (with the cu124 extra index header). Upgrade deliberately: change, test, re-freeze, keep the header.
 - Conversation log: `log_turn()` in assistant.py, called at the end of `llm_stream` (the one path for both modes); callers pass `source="voice"|"typed"`. Files `LOG_DIR/YYYY-MM-DD.md`, session header per run. When testing, set `LOG_DIR` to a scratch path (and `MEMORY=0`) so the user's real logs and memory stay clean.
-- Not in git (keep it that way): `memory.md` and `conversations/` (personal data), `local.env`, `certs/`, `voice-samples/`, `.venv/`, logs.
+- Profiles: `profiles/<name>.md` = optional `key: value` header (`label voice speed pause temperature model`) + blank line + prompt; `load_profile()` falls back to the env settings for missing keys, rejects names outside `[\w-]+` and names starting with `_` (`_template.md` documents the keys and is not listed). Bad numbers are skipped; `check_profile()` (startup + switch) falls back to `VOICE` if the voice isn't in the HF cache/downloadable and to the current model if Ollama doesn't list it — otherwise Kokoro would fail mid-reply. `apply_profile()` swaps the module globals `profile`/`LLM_MODEL`, temperature, `PLAY_OPTIONS` pause, Kokoro voice/speed, resets `history` (fresh conversation; memory shared) and starts a new log session; on a model change it unloads the old model (`keep_alive: 0`) first, as only one fits. Kokoro builds a pipeline per accent lazily on the *current* GPU, so `set_profile_voice()` pre-builds it inside `torch.cuda.device(KOKORO_GPU)`. Web: profile switches go through the inbox as `("profile", name)` so they serialize with replies; web.py reads `assistant.profile` (not an imported copy). The last switched-to profile is saved in `memory/profile.txt` (`PROFILE_FILE`) and used at startup unless `PROFILE` is set; a missing file falls back to `default`. When testing, set `PROFILE_FILE` to a scratch path. In offline mode only downloaded voices work (af_heart, af_bella, am_michael, bf_emma).
+- Not in git (keep it that way): `memory/` and `conversations/` (personal data), `local.env`, `certs/`, `voice-samples/`, `.venv/`, logs.
 
 ## Working with this user
 
