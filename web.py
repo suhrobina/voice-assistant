@@ -28,7 +28,7 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from assistant import (BARGE_IN, FOLLOW_UP, LLM_MODEL, PLAY_OPTIONS, make_voice,
+from assistant import (BARGE_IN, FOLLOW_UP, SLEEP_SOUND, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
                        stop_llm, warm_up_llm)
 from assistant import set_wake_mode as set_recorder_wake_mode
@@ -158,7 +158,7 @@ async def handler(ws):
     queue = asyncio.Queue()
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n📱  Phone connected", flush=True)
-    send({"type": "hello", "wake": WAKE_WORD.replace("_", " "),
+    send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
           "memory": memory is not None, "profile": assistant.profile["name"],
           "profiles": [{"name": n, "label": load_profile(n)["label"]} for n in list_profiles()]})
     sender = asyncio.create_task(pump(ws, queue))

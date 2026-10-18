@@ -51,6 +51,7 @@ LOG = os.getenv("LOG", "1") == "1"                       # save conversations to
 LOG_DIR = os.getenv("LOG_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "conversations"))
 WAKE_WORD = os.getenv("WAKE_WORD", "hey_jarvis")        # say it before talking; "" = off (always listening)
 FOLLOW_UP = float(os.getenv("FOLLOW_UP", "8"))           # seconds after a reply to talk without the wake word; 0 = always need it
+SLEEP_SOUND = os.getenv("SLEEP_SOUND", "1") == "1"       # soft falling tone when it stops listening (wake word needed again); 0 = silent
 WAKE_SENSITIVITY = float(os.getenv("WAKE_SENSITIVITY", "0.5"))  # 0..1, higher = stricter (fewer false wake-ups)
 PROFILE = os.getenv("PROFILE", "")                       # personality from profiles/<name>.md; "" = last one chosen
 PROFILES_DIR = os.getenv("PROFILES_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles"))
@@ -300,11 +301,17 @@ def warm_up_llm():
     )
 
 
-def chime():
+SLEEP_NOTES = ((660, 0.1), (440, 0.14))  # falling = "stopped listening"; the wake chime is one high note
+
+
+def chime(notes=((880, 0.12),), volume=0.25):
     """Short soft tone meaning "I'm listening" (played with aplay, silent if missing)."""
     rate = 24000
-    t = np.arange(int(rate * 0.12)) / rate
-    tone = (0.25 * np.sin(2 * np.pi * 880 * t) * np.hanning(len(t)) * 32767).astype(np.int16)
+    parts = []
+    for freq, secs in notes:
+        t = np.arange(int(rate * secs)) / rate
+        parts.append(volume * np.sin(2 * np.pi * freq * t) * np.hanning(len(t)))
+    tone = (np.concatenate(parts) * 32767).astype(np.int16)
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)
@@ -483,9 +490,12 @@ def main():
             recorder.listen_start = time.time()
 
     def close_follow_up():
+        # Back to waiting for the wake word: after the follow-up window, or "Hey Jarvis" and then silence
         recorder.wake_word_activation_delay = 0
         if recorder.use_wake_words:
             print(f"\n💤  Say \"{wake_name}\" to talk", flush=True)
+            if SLEEP_SOUND and not tts.is_playing():  # a long reply can outlast the window
+                threading.Thread(target=chime, args=(SLEEP_NOTES, 0.15), daemon=True).start()
 
     def mode_line():
         if recorder.use_wake_words:

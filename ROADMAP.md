@@ -9,7 +9,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Docs: README, HOW_IT_WORKS, comments on every setting in `assistant.py`
 - [x] Typed messages: console (type + Enter) and web (text box, works without the mic; replies are spoken only while talking is on)
 - [x] Pinned package versions: `requirements.txt` (all 136 packages, verified in a fresh environment), used by `setup.sh`
-- [x] Wake word "Hey Jarvis" (openWakeWord, offline) with chime and 8 s follow-up window; `WAKE_WORD=` turns it off; works in console and phone mode (switch modes: `/wake` in the console, a switch on the phone)
+- [x] Wake word "Hey Jarvis" (openWakeWord, offline) with chime, 8 s follow-up window and a falling "sleep" tone when it stops listening (`SLEEP_SOUND=0` = off); `WAKE_WORD=` turns it off; works in console and phone mode (switch modes: `/wake` in the console, a switch on the phone)
 - [x] Two GPUs: `qwen3:8b` + Whisper (`int8_float16`) on the RTX 3070 Ti (Ollama pinned to it), Kokoro + desktop on the Quadro T1000 (BIOS primary display). Smarter model, no extra delay. Settings in `local.env`
 - [x] Fully offline after the first start: `HF_HUB_OFFLINE=1` in `run.sh` (verified with the internet blocked)
 - [x] Conversation log: `conversations/YYYY-MM-DD.md`, both modes, spoken/typed marked; `LOG=0` turns it off

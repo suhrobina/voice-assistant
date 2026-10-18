@@ -17,9 +17,11 @@ You can also **type** a message in the console and press Enter — voice keeps w
 - Switch while it's running: type `/wake` (or `/wake on`, `/wake off`) and press Enter. `/help` lists all commands.
 - Start without the wake word feature at all: `WAKE_WORD= ./run.sh`
 - Follow-up window: `FOLLOW_UP=15 ./run.sh` (seconds), or `FOLLOW_UP=0` to need "Hey Jarvis" every time.
+- When it stops listening (window over, or "Hey Jarvis" and then nothing), two soft falling notes play:
+  say "Hey Jarvis" again. `SLEEP_SOUND=0` turns that sound off.
 - Too many false wake-ups → `WAKE_SENSITIVITY=0.7`; not reacting → `0.3` (default 0.5).
 - Phone mode: the **👂 wake word button** next to the talk button picks the mode — off = regular talking
-  (default), on = say "Hey Jarvis" first (the phone chimes and shows the state at the top). The page remembers it.
+  (default), on = say "Hey Jarvis" first (the phone chimes and shows the state above the text box). The page remembers it.
 
 **Using speakers instead of headphones?** Start it with interruption turned off,
 otherwise the assistant hears its own voice and keeps cutting itself off:

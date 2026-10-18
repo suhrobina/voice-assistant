@@ -84,7 +84,7 @@ for the wake word, detected offline by
 ```
  💤 waiting ──"Hey Jarvis"──► 👂 chime, listening ──► you talk ──► reply
      ▲                                                               │
-     └──── after FOLLOW_UP s of silence ◄── free-talk window ◄───────┘
+     └── 🔉 falling tone ◄── after FOLLOW_UP s of silence ◄── free-talk window ◄──┘
                                             (starts when the reply finishes playing)
 ```
 
@@ -94,7 +94,9 @@ for the wake word, detected offline by
   `played` when it's done speaking and the server opens the window then. The server also sends the
   wake state (`listening` / `window` / `sleep`) so the page can chime and show it.
 - Switch at runtime: console `/wake` command, phone **👂 button** next to the talk button (both toggle `recorder.use_wake_words`).
-- Settings: `WAKE_WORD` (`""` = off), `FOLLOW_UP`, `WAKE_SENSITIVITY`.
+- Going back to sleep (window over, or the wake word and then 5 s of silence) plays two soft falling notes —
+  the opposite of the wake chime — except while a reply is still playing.
+- Settings: `WAKE_WORD` (`""` = off), `FOLLOW_UP`, `WAKE_SENSITIVITY`, `SLEEP_SOUND` (`0` = no falling tone).
 
 ## Barge-in (interrupting)
 

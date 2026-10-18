@@ -194,6 +194,7 @@ let playTime = 0, sources = [], aiEl = null, aiText = '';
 let ignoreAudio = false;  // after "stop", drop late audio until the next reply starts
 let wakeName = '';        // e.g. "hey jarvis"; '' = server has no wake word
 let wakeMode = false;     // the switch: require the wake word (remembered)
+let sleepSound = true;    // server's SLEEP_SOUND: falling tone when it stops listening
 try { wakeMode = localStorage.getItem('wakeMode') === '1'; } catch {}
 let starting = false;     // microphone is being started
 let replyEnded = false;   // server sent all audio; tell it "played" once the phone is done
@@ -243,6 +244,7 @@ function onMessage(e) {
   const m = JSON.parse(e.data);
   if (m.type === 'hello') {
     wakeName = m.wake;
+    sleepSound = m.sleep_sound !== false;
     wakeBtn.hidden = !wakeName;
     memBtn.hidden = !m.memory;
     profileSel.innerHTML = '';
@@ -292,18 +294,27 @@ function onWake(state) {
   if (!mic || !wakeMode) return;
   if (state === 'listening') { setStatus('👂 Listening…', true); chime(); }
   else if (state === 'window') setStatus('Go ahead…', true);
-  else idleStatus();
+  else {  // "sleep": the wake word is needed again (not while a reply is still playing)
+    if (sleepSound && !sources.length) chime(SLEEP_NOTES, 0.15);
+    idleStatus();
+  }
 }
 
-function chime() {  // short soft tone, same as on the PC
+// Short soft tones, same as on the PC: one high note = listening, two falling = stopped listening
+const SLEEP_NOTES = [[660, 0.1], [440, 0.14]];
+function chime(notes = [[880, 0.12]], volume = 0.25) {
   if (!out || muted) return;
-  const osc = out.createOscillator(), gain = out.createGain(), t = out.currentTime;
-  osc.frequency.value = 880;
-  gain.gain.setValueAtTime(0, t);
-  gain.gain.linearRampToValueAtTime(0.25, t + 0.03);
-  gain.gain.linearRampToValueAtTime(0, t + 0.12);
-  osc.connect(gain).connect(out.destination);
-  osc.start(t); osc.stop(t + 0.13);
+  let t = out.currentTime;
+  for (const [freq, secs] of notes) {
+    const osc = out.createOscillator(), gain = out.createGain();
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(volume, t + 0.03);
+    gain.gain.linearRampToValueAtTime(0, t + secs);
+    osc.connect(gain).connect(out.destination);
+    osc.start(t); osc.stop(t + secs + 0.01);
+    t += secs;
+  }
 }
 
 function reportPlayed() {  // reply fully played -> server opens the follow-up window
