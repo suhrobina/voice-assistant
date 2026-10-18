@@ -14,6 +14,12 @@ if [ -f local.env ]; then
   done < local.env
 fi
 
+# Fully offline once the models are downloaded: no update checks on Hugging Face.
+# To download a new voice or Whisper model, run once with HF_HUB_OFFLINE=0 ./run.sh
+if [ -z "${HF_HUB_OFFLINE+x}" ] && [ -d "$HOME/.cache/huggingface/hub/models--hexgrad--Kokoro-82M" ]; then
+  export HF_HUB_OFFLINE=1
+fi
+
 # GPU numbers (WHISPER_GPU, KOKORO_GPU) match `nvidia-smi -L`.
 # Ollama picks its own GPU (see README "Two GPUs").
 export CUDA_DEVICE_ORDER=PCI_BUS_ID

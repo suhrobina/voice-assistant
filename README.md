@@ -96,6 +96,13 @@ knows it next time — in both normal and phone mode.
 ## Expected latency on a 3070 Ti
 About 0.5–0.9 s from when you stop talking to first sound. Roughly: silence detection ~0.45 s, transcription ~0.1 s, first LLM words ~0.1 s, first audio ~0.1 s.
 
+## Fully offline
+After the first start (models downloaded), the assistant never contacts the internet: `run.sh` sets
+`HF_HUB_OFFLINE=1` once the models are on disk (tested with all internet traffic blocked).
+- **New voice or Whisper model** (not downloaded yet): run once with `HF_HUB_OFFLINE=0 ./run.sh`,
+  after that it works offline too.
+- Ollama models are separate: `ollama pull <model>` needs internet once.
+
 ## Troubleshooting
 - **First launch is slow** (several minutes): it downloads the Whisper model (~1.5 GB) and loads the LLM into the GPU for the first time. Later launches are much faster.
 - It hears you but never answers / cuts itself off → if you use speakers, start with `BARGE_IN=0 ./run.sh`.

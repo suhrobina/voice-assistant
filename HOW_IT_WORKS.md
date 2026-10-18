@@ -167,4 +167,4 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 
 ## Where things run
 
-Whisper, Kokoro and the AI model all run on the **GPU**, so it is fast and nothing leaves your computer. Internet is needed only for setup and the first launch (to download the models). After that it works fully offline.
+Whisper, Kokoro and the AI model all run on the **GPU**, so it is fast and nothing leaves your computer. Internet is needed only for setup and the first launch (to download the models). After that it works fully offline: `run.sh` sets `HF_HUB_OFFLINE=1`, so Kokoro and Whisper don't even check Hugging Face for updates.
