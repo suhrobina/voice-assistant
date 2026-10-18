@@ -52,7 +52,7 @@ where the text came from — memory, personality and history work the same.
 ```
 
 A typed message always interrupts the current reply. On the web page, replies are spoken
-only while **🎤 Start talking** is on; otherwise the server skips Kokoro entirely, so a silent
+only while talking is on (🎤 tapped); otherwise the server skips Kokoro entirely, so a silent
 text chat doesn't use the GPU for speech.
 
 ## One conversation turn, step by step
@@ -77,7 +77,7 @@ Because each step starts before the previous one finishes, you hear an answer ab
 
 ## Wake word ("Hey Jarvis")
 
-In normal mode, and in phone mode when the page's **Wake word** switch is on, the ears first wait
+In normal mode, and in phone mode when the page's **👂 wake word icon** is on, the ears first wait
 for the wake word, detected offline by
 **openWakeWord** (a tiny model, runs on the CPU):
 
@@ -93,7 +93,7 @@ for the wake word, detected offline by
 - Phone mode: the phone plays audio after the server has finished generating it, so the page reports
   `played` when it's done speaking and the server opens the window then. The server also sends the
   wake state (`listening` / `window` / `sleep`) so the page can chime and show it.
-- Switch at runtime: console `/wake` command, phone **Wake word** switch (both toggle `recorder.use_wake_words`).
+- Switch at runtime: console `/wake` command, phone **👂 icon** in the top bar (both toggle `recorder.use_wake_words`).
 - Settings: `WAKE_WORD` (`""` = off), `FOLLOW_UP`, `WAKE_SENSITIVITY`.
 
 ## Barge-in (interrupting)

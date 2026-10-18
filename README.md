@@ -18,7 +18,7 @@ You can also **type** a message in the console and press Enter — voice keeps w
 - Start without the wake word feature at all: `WAKE_WORD= ./run.sh`
 - Follow-up window: `FOLLOW_UP=15 ./run.sh` (seconds), or `FOLLOW_UP=0` to need "Hey Jarvis" every time.
 - Too many false wake-ups → `WAKE_SENSITIVITY=0.7`; not reacting → `0.3` (default 0.5).
-- Phone mode: the **Wake word** switch under the 🎤 button picks the mode — off = regular talking
+- Phone mode: the **👂 wake word icon** in the top bar picks the mode — off = regular talking
   (default), on = say "Hey Jarvis" first (the phone chimes and shows the state at the top). The page remembers it.
 
 **Using speakers instead of headphones?** Start it with interruption turned off,
@@ -34,9 +34,12 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
 ```
 1. It prints an address like `https://192.168.1.20:8443`. Open it in your phone's browser (Chrome) — phone and server on the same Wi-Fi.
 2. The first time, the browser warns about the certificate (it is self-made). Tap **Advanced → Proceed**.
-3. **Type** in the text box and tap Send — a silent text chat, no microphone needed.
-4. Tap **🎤 Start talking** for a voice conversation: you talk, it talks back (typed messages
-   get spoken replies too). **■ Stop talking** = back to silent text chat. Keep the page open.
+3. One button at the right of the text field changes with what you do (like the ChatGPT/Claude apps):
+   - **sound-wave icon** (field empty): start a voice conversation — you talk, it talks back.
+   - **➤** (as soon as you type): send. Enter makes a new line (on a PC keyboard, Ctrl+Enter sends).
+     Without voice on, replies are silent text.
+   - **■** (while talking): stop talking — back to silent text chat.
+   Keep the page open.
 
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.
