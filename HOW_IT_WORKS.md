@@ -1,0 +1,91 @@
+# How It Works
+
+The assistant is a chain of three parts — **ears → brain → voice** — plus a few helpers. Everything runs on your own PC.
+
+```
+ 🎤 Mic ──► EARS ──────────► BRAIN ──────────► VOICE ──► 🔊 Speakers
+           RealtimeSTT        Ollama            RealtimeTTS
+           (Silero VAD +      (llama3.2:3b)     (Kokoro)
+            Whisper)
+               ▲                                    │
+               └──────── barge-in: you talk ────────┘
+                         → it stops speaking
+```
+
+## The components
+
+### 1. Ears — RealtimeSTT (speech-to-text)
+Turns your voice into text. Inside it, three pieces work together:
+
+- **PyAudio** reads the microphone continuously, in small chunks (~1/16 of a second).
+- **VAD (voice activity detection)** decides "is someone talking or is it silence?". Two detectors run together:
+  - **WebRTC VAD** — fast and rough.
+  - **Silero VAD** — accurate (requires `onnxruntime`).
+
+  When you have been quiet for `SILENCE` seconds (default 0.45 s), it decides your turn is over.
+- **faster-whisper** — the actual speech recognizer, running on the GPU. The model is `distil-large-v3` (~1.5 GB, downloaded on first launch). It turns the recorded audio into text, e.g. `"Do you hear me?"`.
+
+### 2. Brain — Ollama + LLM
+Decides what to answer.
+
+- **Ollama** is a separate program running in the background as a system service. It keeps the AI model (`llama3.2:3b` by default) loaded in GPU memory.
+- The script sends your text to it over a local web address (`http://localhost:11434`), together with the **conversation history**, so it remembers earlier turns.
+- The **system prompt** tells the model: be warm, use short sentences, no markdown — because the answer will be spoken, not read.
+- **Streaming:** the model returns the answer word by word as it is generated, instead of waiting for the whole answer.
+
+### 3. Voice — RealtimeTTS + Kokoro (text-to-speech)
+Turns the answer into speech.
+
+- **RealtimeTTS** collects the streaming words and cuts them into sentences or clauses. As soon as it has a first piece (~8 characters, e.g. `"Sure, I can"`), it sends it on — without waiting for the full answer.
+- **Kokoro** is the speech model. It turns each piece of text into audio using the selected voice (`af_heart` by default).
+- **PyAudio** plays the audio through your speakers.
+
+## One conversation turn, step by step
+
+1. You say: *"What's the weather like on Mars?"*
+2. Silero VAD hears speech → recording starts.
+3. You stop. After 0.45 s of silence → turn is over.
+4. Whisper transcribes the audio → `"What's the weather like on Mars?"` (~0.1 s).
+5. The script sends this to Ollama → it starts streaming: `"Mars" "is" "very" "cold" ","…`
+6. RealtimeTTS receives `"Mars is very cold,"` → Kokoro speaks it immediately.
+7. While that plays, the brain keeps generating and Kokoro prepares the next sentence.
+
+Because each step starts before the previous one finishes, you hear an answer about **0.7 s** after you stop talking, even though the full answer takes several seconds to generate.
+
+| Step | Approx. time |
+|---|---|
+| Silence detection | 0.45 s |
+| Transcription (Whisper) | ~0.1 s |
+| First words from the LLM | ~0.1 s |
+| First audio (Kokoro) | ~0.1 s |
+| **Total until first sound** | **~0.7 s** |
+
+## Barge-in (interrupting)
+
+If you start talking while the assistant is speaking, Silero VAD notices it and calls `interrupt()`, which:
+
+1. stops the audio playback,
+2. tells the brain to stop generating,
+3. listens to you.
+
+It is hooked to the `on_vad_start` event, which fires only when actual speech is detected.
+
+With **speakers** (no headphones), the microphone hears the assistant's own voice and it interrupts itself. In that case run it with interruption turned off:
+
+```bash
+BARGE_IN=0 ./run.sh
+```
+
+## The files
+
+| File | Role |
+|---|---|
+| `assistant.py` | Connects ears, brain and voice; runs the conversation loop |
+| `setup.sh` | One-time install: system packages, Ollama, the AI model, Python environment |
+| `run.sh` | Starts the assistant and tells it where the CUDA libraries are |
+| `.venv/` | Python environment with all installed packages |
+| `realtimesst.log` | RealtimeSTT's debug log — useful when something breaks |
+
+## Where things run
+
+Whisper, Kokoro and the AI model all run on the **GPU**, so it is fast and nothing leaves your computer. Internet is needed only for setup and the first launch (to download the models). After that it works fully offline.
