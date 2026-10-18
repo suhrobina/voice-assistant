@@ -33,7 +33,7 @@ from assistant import (BARGE_IN, FOLLOW_UP, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        stop_llm, warm_up_llm)
 from assistant import set_wake_mode as set_recorder_wake_mode
 from assistant import apply_profile, list_profiles, load_profile
-from assistant import memory, memory_add, memory_clear, memory_remove, speakable
+from assistant import memory, memory_add, memory_clear, memory_edit, memory_remove, speakable
 import assistant  # for the current profile (assistant.profile changes on switch)
 
 # ---------------- CONFIG ----------------
@@ -187,6 +187,9 @@ async def handler(ws):
                     memory_add(fact) or memory_event()  # already known: just resend the list
                 elif m["type"] == "memory_remove":
                     memory_remove(fact) or memory_event()
+                elif m["type"] == "memory_edit":  # emptied = delete
+                    old = str(m.get("old", ""))
+                    (memory_edit(old, fact) if fact else memory_remove(old)) or memory_event()
                 elif m["type"] == "memory_clear":
                     memory_clear()
                 else:

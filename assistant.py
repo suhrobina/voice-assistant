@@ -194,6 +194,16 @@ def memory_remove(fact):
     return False
 
 
+def memory_edit(old, new):
+    fact = memory.edit(old, new)
+    if fact:
+        merged = fact not in memory.facts  # it matched another fact, so the old one was just dropped
+        print(f"🧠  forgot: {old} (same as another fact)" if merged else
+              f"🧠  changed: {old} → {fact}", flush=True)
+        memory_changed([] if merged else [fact], [old], learned=False)
+    return fact
+
+
 def memory_clear():
     removed = memory.forget_all()
     print(f"🧠  forgot everything ({len(removed)} facts)", flush=True)

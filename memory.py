@@ -116,6 +116,20 @@ class Memory:
             self._save()
         return True
 
+    def edit(self, old, new):
+        """Replace one fact (exact text) in place; returns the new text, or None if not found."""
+        new = new.strip()
+        with _lock:
+            if old not in self.facts or not new:
+                return None
+            i = self.facts.index(old)
+            if any(_norm(f) == _norm(new) for j, f in enumerate(self.facts) if j != i):
+                self.facts.pop(i)  # now the same as another fact: keep just that one
+            else:
+                self.facts[i] = new
+            self._save()
+        return new
+
     def forget_all(self):
         with _lock:
             removed, self.facts = self.facts, []

@@ -10,11 +10,13 @@
   :root {
     --bg: #ffffff; --fg: #1f1f1f; --muted: #8a8a8a; --card: #f4f4f4; --chip: #e6e6e6; --line: #e4e4e4;
     --accent: #1f1f1f; --on-accent: #ffffff; --live: #16a34a; --stop: #dc2626;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #171717; --fg: #ececec; --muted: #8e8e8e; --card: #262626; --chip: #363636; --line: #383838;
       --accent: #ececec; --on-accent: #171717; --live: #22c55e; --stop: #ef4444;
+      color-scheme: dark;  /* dark scrollbars and form controls */
     }
   }
   * { box-sizing: border-box; }
@@ -107,9 +109,15 @@
   #sheet h2 span { color: var(--muted); font-weight: 400; }
   .plain { border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
   .plain:hover { background: var(--card); }
-  #facts { list-style: none; margin: 0; padding: 0 14px; overflow-y: auto; flex: 1; }
-  #facts li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-  #facts li span { flex: 1; overflow-wrap: anywhere; }
+  #facts { list-style: none; margin: 0; padding: 0 8px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; overflow-y: auto; flex: 1; }
+  #facts li { display: flex; align-items: center; gap: 8px; padding: 8px 6px; border-bottom: 1px solid var(--line);
+              border-radius: 8px; transition: background 1.2s; }
+  #facts li.new { background: var(--chip); transition: none; }  /* just added or edited: brief highlight */
+  #facts li span { flex: 1; overflow-wrap: anywhere; cursor: text; }
+  #facts li input {
+    flex: 1; min-width: 0; font: inherit; color: var(--fg); background: var(--card);
+    border: 1px solid var(--muted); border-radius: 8px; padding: 4px 8px; outline: 0;
+  }
   #facts .empty { color: var(--muted); justify-content: center; text-align: center; border: 0; padding: 18px 0; }
   #addFact { display: flex; gap: 6px; margin: 10px 14px 4px; padding: 4px 4px 4px 14px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); }
   #factText { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--fg); font: inherit; }
@@ -439,23 +447,71 @@ function onMemory(m) {
     for (const f of m.added) add('note', `🧠 Remembered: ${f}`);
     for (const f of m.removed) add('note', `🧠 Forgot: ${f}`);
   }
-  $('memCount').textContent = `· ${m.facts.length} fact${m.facts.length === 1 ? '' : 's'}`;
+  facts = m.facts;
+  if (!editing) {  // while editing, the list waits (re-render would lose the typing)
+    renderFacts();
+    showNew(m.added);
+  }
+}
+
+let facts = [], editing = false;
+
+function renderFacts() {
+  $('memCount').textContent = `· ${facts.length} fact${facts.length === 1 ? '' : 's'}`;
   factsEl.innerHTML = '';
-  if (!m.facts.length) {
+  if (!facts.length) {
     const li = document.createElement('li');
     li.className = 'empty';
     li.textContent = 'Nothing yet. Tell it about yourself, or add a fact below.';
     factsEl.appendChild(li);
   }
-  for (const f of m.facts) {
+  for (const f of facts) {
     const li = document.createElement('li'), span = document.createElement('span'), x = document.createElement('button');
     span.textContent = f;
+    span.title = 'Tap to edit';
+    span.onclick = () => editFact(span, f);
     x.className = 'plain'; x.type = 'button'; x.textContent = '✕'; x.title = 'Forget this';
     x.onclick = () => wsSend({ type: 'memory_remove', fact: f });
     li.append(span, x);
     factsEl.appendChild(li);
   }
-  $('clearMem').hidden = !m.facts.length;
+  $('clearMem').hidden = !facts.length;
+}
+
+// Scroll to the fact that was just added or edited and highlight it for a moment
+function showNew(added) {
+  const li = [...factsEl.children].reverse().find(li => added.includes(li.firstChild?.textContent));
+  if (!li) return;
+  li.classList.add('new');
+  li.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  setTimeout(() => li.classList.remove('new'), 900);
+}
+
+// Tap a fact to edit it: Enter or tapping elsewhere saves, Esc cancels, empty = forget it
+function editFact(span, old) {
+  const box = document.createElement('input');
+  box.value = old;
+  box.enterKeyHint = 'done';
+  span.replaceWith(box);
+  box.focus();
+  editing = true;
+  let done = false;
+  const finish = save => {
+    if (done) return;
+    done = true;
+    editing = false;
+    const fact = box.value.trim();
+    if (save && fact !== old) wsSend({ type: 'memory_edit', old, fact });
+    renderFacts();  // the server sends the updated list right after
+  };
+  box.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+  };
+  box.onblur = () => finish(true);
+  const x = box.parentElement.querySelector('button');  // ✕ while editing: forget it in one tap
+  x.onmousedown = e => e.preventDefault();               // keep focus, so blur doesn't save first
+  x.onclick = () => { finish(false); wsSend({ type: 'memory_remove', fact: old }); };
 }
 
 function showMemory(open) {

@@ -79,7 +79,7 @@ knows it next time — in both normal and phone mode.
 
 - **Forget something:** just say it — "Forget about my dog".
 - **See or edit what it knows:**
-  - Phone: the **🧠 button** under the text field opens the list — ✕ deletes a fact, the field adds one,
+  - Phone: the **🧠 button** under the text field opens the list — tap a fact to edit it, ✕ deletes it, the field adds one,
     "Forget everything" clears it. When it learns something, a grey *🧠 Remembered: …* line appears in the chat.
   - Console: `/memory` lists the facts, `/remember Has a cat named Luna` adds one, `/forget 3` deletes
     fact 3, `/forget all` clears everything.
