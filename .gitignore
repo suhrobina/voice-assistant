@@ -3,3 +3,4 @@ __pycache__/
 *.log
 certs/
 memory.md
+voice-samples/

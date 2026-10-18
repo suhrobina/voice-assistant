@@ -53,7 +53,9 @@ knows it next time — in both normal and phone mode.
 - **Faster turn-taking:** `SILENCE=0.3 ./run.sh` (it may cut you off mid-pause).
 - **Smarter answers:** `ollama pull qwen2.5:7b` then `LLM_MODEL=qwen2.5:7b ./run.sh` (fits in 8 GB, slightly slower).
 - **Other language:** `LANGUAGE=ru ./run.sh` (or `LANGUAGE=` for auto-detect). Kokoro voices are mainly English; see Kokoro voice list for others.
-- **Other voice:** `VOICE=am_michael ./run.sh` (also af_bella, bf_emma, am_adam...)
+- **Other voice:** `VOICE=am_michael ./run.sh` (also af_bella, bf_emma, am_adam...), or a blend: `VOICE="0.6*af_heart + 0.4*af_bella" ./run.sh`
+- **Speaking speed:** `TTS_SPEED=0.92 ./run.sh` (calmer) or `1.1` (faster).
+- **Pause between sentences:** `SENTENCE_PAUSE=0.3 ./run.sh` (default 0.2 s; `0` = none).
 
 ## Expected latency on a 3070 Ti
 About 0.5–0.9 s from when you stop talking to first sound. Roughly: silence detection ~0.45 s, transcription ~0.1 s, first LLM words ~0.1 s, first audio ~0.1 s.

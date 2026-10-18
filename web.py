@@ -26,7 +26,7 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from assistant import (BARGE_IN, LLM_MODEL, PLAY_OPTIONS, VOICE, llm_stream,
+from assistant import (BARGE_IN, LLM_MODEL, PLAY_OPTIONS, TTS_SPEED, VOICE, llm_stream,
                        make_recorder, print_memory_status, stop_llm, warm_up_llm)
 
 # ---------------- CONFIG ----------------
@@ -151,7 +151,7 @@ def local_ip():
 async def main():
     global tts, recorder
     print("Loading voice...", flush=True)
-    tts = TextToAudioStream(KokoroEngine(voice=VOICE), muted=True)
+    tts = TextToAudioStream(KokoroEngine(voice=VOICE, default_speed=TTS_SPEED), muted=True)
 
     print("Loading ears...", flush=True)
     recorder = make_recorder(interrupt, use_microphone=False)

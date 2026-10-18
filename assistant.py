@@ -27,6 +27,9 @@ LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:3b")        # fast; try qwen2.5:7b 
 STT_MODEL = os.getenv("STT_MODEL", "distil-large-v3")    # accurate + fast on GPU; small.en = faster, less accurate
 LANGUAGE = os.getenv("LANGUAGE", "en")                   # "" = auto-detect
 VOICE = os.getenv("VOICE", "af_heart")                   # Kokoro voice: af_bella, am_michael, bf_emma...
+                                                         # or a blend: "0.6*af_heart + 0.4*af_bella"
+TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))         # speaking speed; 0.9 = calmer, 1.1 = faster
+SENTENCE_PAUSE = float(os.getenv("SENTENCE_PAUSE", "0.2"))  # seconds of breath between sentences; 0 = none
 SILENCE = float(os.getenv("SILENCE", "0.45"))            # seconds of silence = end of turn
 BARGE_IN = os.getenv("BARGE_IN", "1") == "1"             # talk over it to interrupt; set 0 when using speakers
 MEMORY = os.getenv("MEMORY", "1") == "1"                 # long-term memory about you; 0 = off
@@ -143,6 +146,8 @@ PLAY_OPTIONS = dict(
     # natural intonation, but it starts speaking a bit later.
     minimum_sentence_length=8,
     minimum_first_fragment_length=8,
+    sentence_silence_duration=SENTENCE_PAUSE,
+    comma_silence_duration=0.05,       # only when a piece ends at a comma (first clause)
     buffer_threshold_seconds=0.0,
     log_synthesized_text=False,
 )
@@ -150,7 +155,7 @@ PLAY_OPTIONS = dict(
 
 def main():
     print("Loading voice...", flush=True)
-    engine = KokoroEngine(voice=VOICE)
+    engine = KokoroEngine(voice=VOICE, default_speed=TTS_SPEED)
     tts = TextToAudioStream(engine, frames_per_buffer=256)
 
     def interrupt():

@@ -7,6 +7,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Phone mode: `./run.sh --web`, works with Bluetooth headphones
 - [x] Long-term memory: `memory.md`, can be turned off with `MEMORY=0`
 - [x] Docs: README, HOW_IT_WORKS, comments on every setting in `assistant.py`
+- [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities
 - [ ] **Tools: time, date, timers, reminders.** "Remind me in 20 minutes to check the oven." Small models don't even know today's date without this.
@@ -27,8 +28,9 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [ ] Response time display: print how long each step took
 
 ## 🎙️ Voice quality
-- [ ] More natural Kokoro: raise `minimum_first_fragment_length` / `minimum_sentence_length` to 30–40 (more natural intonation, starts ~0.1–0.3 s later)
-- [ ] Try other voices: `af_bella`, `am_michael`, `bf_emma`
+- Tested: longer text pieces change nothing — RealtimeTTS 0.8.10 already sends Kokoro whole sentences
+- Samples to compare voices/speeds: `voice-samples/` (not in git)
+- [ ] Natural writing style in the system prompt: contractions, casual phrases, occasional "well," / "hmm,"
 - [ ] More human-like speech model: Chatterbox (emotion, voice cloning, ~3–4 GB) or Orpheus (very natural, heavy)
 - [ ] Other languages: Whisper supports many (`LANGUAGE=ru` or auto), Kokoro voices are mainly English
 
