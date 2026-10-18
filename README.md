@@ -10,6 +10,7 @@ bash setup.sh      # once, ~10 min (downloads models)
 ./run.sh
 ```
 Wait for "Ready.", then just talk. Talk over it to interrupt.
+You can also **type** a message in the console and press Enter — voice keeps working at the same time.
 
 **Using speakers instead of headphones?** Start it with interruption turned off,
 otherwise the assistant hears its own voice and keeps cutting itself off:
@@ -24,7 +25,9 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
 ```
 1. It prints an address like `https://192.168.1.20:8443`. Open it in your phone's browser (Chrome) — phone and server on the same Wi-Fi.
 2. The first time, the browser warns about the certificate (it is self-made). Tap **Advanced → Proceed**.
-3. Tap **Start**, allow the microphone, and just talk. Keep the page open.
+3. **Type** in the text box and tap Send — a silent text chat, no microphone needed.
+4. Tap **🎤 Start talking** for a voice conversation: you talk, it talks back (typed messages
+   get spoken replies too). **■ Stop talking** = back to silent text chat. Keep the page open.
 
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.

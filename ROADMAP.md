@@ -7,6 +7,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Phone mode: `./run.sh --web`, works with Bluetooth headphones
 - [x] Long-term memory: `memory.md`, can be turned off with `MEMORY=0`
 - [x] Docs: README, HOW_IT_WORKS, comments on every setting in `assistant.py`
+- [x] Typed messages: console (type + Enter) and web (text box, works without the mic; replies are spoken only while talking is on)
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities

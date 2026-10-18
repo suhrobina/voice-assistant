@@ -10,6 +10,7 @@ Everything runs offline on your GPU. Tune via environment variables (see CONFIG)
 """
 import json
 import os
+import queue
 import sys
 import threading
 
@@ -153,13 +154,29 @@ PLAY_OPTIONS = dict(
 )
 
 
+def listen(recorder, inbox):
+    """Put each spoken sentence into the inbox."""
+    while True:
+        text = recorder.text().strip()
+        if text:
+            inbox.put(("voice", text))
+
+
+def read_keyboard(inbox):
+    """Put each typed line into the inbox (ends quietly when there is no keyboard)."""
+    for line in sys.stdin:
+        if line.strip():
+            inbox.put(("typed", line.strip()))
+
+
 def main():
     print("Loading voice...", flush=True)
     engine = KokoroEngine(voice=VOICE, default_speed=TTS_SPEED)
     tts = TextToAudioStream(engine, frames_per_buffer=256)
 
-    def interrupt():
-        if BARGE_IN and tts.is_playing():
+    def interrupt(force=False):
+        # typed messages always interrupt (no risk of the mic hearing the speakers)
+        if (BARGE_IN or force) and tts.is_playing():
             stop_llm.set()
             tts.stop()
 
@@ -171,14 +188,21 @@ def main():
     print_memory_status()
     tts.feed("Ready.").play()
 
-    print("\n🎤  Speak any time. Ctrl+C to quit.\n")
+    inbox = queue.Queue()
+    threading.Thread(target=listen, args=(recorder, inbox), daemon=True).start()
+    threading.Thread(target=read_keyboard, args=(inbox,), daemon=True).start()
+
+    print("\n🎤  Speak any time, or type a message and press Enter. Ctrl+C to quit.\n")
     try:
         while True:
-            text = recorder.text().strip()
-            if not text:
+            try:
+                source, text = inbox.get(timeout=0.5)  # timeout keeps Ctrl+C responsive
+            except queue.Empty:
                 continue
-            interrupt()
-            print(f"\nYou: {text}\nAI : ", end="", flush=True)
+            interrupt(force=source == "typed")
+            if source == "voice":
+                print(f"\nYou: {text}")
+            print("AI : ", end="", flush=True)
             tts.feed(llm_stream(text))
             tts.play_async(**PLAY_OPTIONS)
     except KeyboardInterrupt:

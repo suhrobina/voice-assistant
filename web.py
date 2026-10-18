@@ -14,6 +14,7 @@ Start with:  ./run.sh --web
 import asyncio
 import json
 import os
+import queue
 import socket
 import ssl
 import subprocess
@@ -26,8 +27,9 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from assistant import (BARGE_IN, LLM_MODEL, PLAY_OPTIONS, TTS_SPEED, VOICE, llm_stream,
-                       make_recorder, print_memory_status, stop_llm, warm_up_llm)
+from assistant import (BARGE_IN, LLM_MODEL, PLAY_OPTIONS, TTS_SPEED, VOICE, listen,
+                       llm_stream, make_recorder, print_memory_status, stop_llm,
+                       warm_up_llm)
 
 # ---------------- CONFIG ----------------
 HOST = os.getenv("HOST", "0.0.0.0")            # 0.0.0.0 = reachable from your network
@@ -49,6 +51,10 @@ class Client:
     ws = None
     queue = None
     loop = None
+    muted = False  # set by the page: True = text-only replies (talking is off)
+
+
+inbox = queue.Queue()  # ("voice" | "typed", text) from the mic and the text box
 
 
 def send(msg):
@@ -71,18 +77,29 @@ def interrupt(force=False):
     send({"type": "stop"})
 
 
+def drain(tokens):
+    for _ in tokens:
+        pass
+
+
 def conversation():
     """Same loop as assistant.py, but replies are streamed to the phone."""
+    text_reply = None  # thread generating a text-only reply (when muted)
     while True:
-        text = recorder.text().strip()
-        if not text:
-            continue
+        source, text = inbox.get()
         interrupt(force=True)
-        print(f"\nYou: {text}\nAI : ", end="", flush=True)
+        if text_reply:
+            text_reply.join()
+        print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
         send({"type": "user", "text": text})
         send({"type": "reply"})
-        tts.feed(llm_stream(text, on_token=lambda t: send({"type": "token", "text": t})))
-        tts.play_async(**PLAY_OPTIONS, muted=True, on_audio_chunk=send)
+        tokens = llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}))
+        if Client.muted:
+            text_reply = threading.Thread(target=drain, args=(tokens,), daemon=True)
+            text_reply.start()
+        else:
+            tts.feed(tokens)
+            tts.play_async(**PLAY_OPTIONS, muted=True, on_audio_chunk=send)
 
 
 async def pump(ws, queue):
@@ -102,6 +119,15 @@ async def handler(ws):
         async for msg in ws:
             if isinstance(msg, bytes):
                 recorder.feed_audio(msg, original_sample_rate=16000)
+                continue
+            try:
+                m = json.loads(msg)
+            except ValueError:
+                continue
+            if m.get("type") == "text" and str(m.get("text", "")).strip():
+                inbox.put(("typed", str(m["text"]).strip()))
+            elif m.get("type") == "mute":
+                Client.muted = bool(m.get("value"))
     finally:
         sender.cancel()
         if Client.ws is ws:
@@ -159,6 +185,7 @@ async def main():
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
     print_memory_status()
+    threading.Thread(target=listen, args=(recorder, inbox), daemon=True).start()
     threading.Thread(target=conversation, daemon=True).start()
 
     async with serve(handler, HOST, PORT, process_request=http,

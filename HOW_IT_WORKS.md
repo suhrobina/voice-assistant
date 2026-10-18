@@ -40,6 +40,21 @@ Turns the answer into speech.
 - **Kokoro** is the speech model. It turns each piece of text into audio using the selected voice (`af_heart` by default).
 - **PyAudio** plays the audio through your speakers.
 
+## Typing instead of talking
+
+Spoken and typed messages go into the same queue (the "inbox"), so the brain doesn't care
+where the text came from — memory, personality and history work the same.
+
+```
+ 🎤 voice → Whisper ─┐
+                     ├─► inbox ─► Ollama ─► Kokoro (web page: only while talking is on)
+ ⌨️ typed text ──────┘
+```
+
+A typed message always interrupts the current reply. On the web page, replies are spoken
+only while **🎤 Start talking** is on; otherwise the server skips Kokoro entirely, so a silent
+text chat doesn't use the GPU for speech.
+
 ## One conversation turn, step by step
 
 1. You say: *"What's the weather like on Mars?"*
