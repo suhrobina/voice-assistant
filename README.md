@@ -46,25 +46,27 @@ Notes:
 - Settings: `PORT=9000 ./run.sh --web`; all the usual ones (`VOICE`, `LLM_MODEL`…) work too.
 
 ## Two GPUs
-This PC runs the AI model (`qwen2.5:7b`) on the RTX 3070 Ti, and Whisper + Kokoro on the Quadro T1000.
+This PC: **RTX 3070 Ti** runs the AI model (`qwen2.5:7b`) + Whisper; **Quadro T1000** runs the voice
+(Kokoro) and the desktop. Answers start as fast as on one GPU, with the smarter model.
 - **Settings:** in `local.env` (machine-specific, not in git). GPU numbers as in `nvidia-smi -L`:
   ```
-  WHISPER_GPU=1          # ears on the T1000
-  KOKORO_GPU=1           # voice on the T1000
-  STT_COMPUTE=int8       # T1000 has no tensor cores: int8 1.7 s vs float16 7 s per sentence
-  LLM_MODEL=qwen2.5:7b   # fits on the 3070 Ti now (~4.8 GB)
+  WHISPER_GPU=0                # ears on the 3070 Ti
+  STT_COMPUTE=int8_float16     # 141 ms per sentence, ~1 GB less memory than float16 (159 ms)
+  KOKORO_GPU=1                 # voice on the T1000
+  LLM_MODEL=qwen2.5:7b         # ~4.8 GB on the 3070 Ti
   ```
   One-off override, e.g. `LLM_MODEL=llama3.2:3b ./run.sh`. Back to one GPU + llama: delete `local.env`.
-- **Trade-off:** answers start ~1.5 s later (Whisper on the slower card), in exchange for the smarter model.
-  Faster alternative: `WHISPER_GPU=0 STT_COMPUTE=float16` keeps Whisper on the 3070 Ti — but then qwen
-  doesn't fit; use llama there.
-- **Ollama's GPU** (one time, needs sudo):
+- **Desktop on the T1000:** monitor plugged into the T1000 *and* the BIOS primary display set to it.
+  Otherwise the desktop still renders on the 3070 Ti (~0.3 GB, more with a browser video).
+- **Memory on the 3070 Ti:** ~5.9 GB of 8 GB used, ~2.3 GB free.
+- **Why not Whisper on the T1000?** It has no tensor cores: 1.7 s per sentence even at `int8` (7 s at `float16`).
+- **Ollama's GPU** (one time, needs sudo; optional — it picks the 3070 Ti on its own now):
   ```bash
   sudo mkdir -p /etc/systemd/system/ollama.service.d
   printf '[Service]\nEnvironment="CUDA_VISIBLE_DEVICES=<3070 Ti UUID>"\n' | sudo tee /etc/systemd/system/ollama.service.d/gpu.conf
   sudo systemctl daemon-reload && sudo systemctl restart ollama
   ```
-- Check with `nvidia-smi` while it runs: `llama-server` on the 3070 Ti, `python` on the T1000.
+- Check with `nvidia-smi` while it runs: `llama-server` + `python` on the 3070 Ti, `python` + Xorg on the T1000.
 
 ## Memory (remembers you between sessions)
 On by default. When you share something about yourself ("My name is…", "I have a dog named Rex",
