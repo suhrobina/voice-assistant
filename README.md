@@ -1,6 +1,7 @@
 # Local Voice Assistant (RTX 3070 Ti, fully offline)
 
 How it works under the hood: see [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
+Ideas and plans: see [ROADMAP.md](ROADMAP.md).
 
 ## Install & run
 ```bash
