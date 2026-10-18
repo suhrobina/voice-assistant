@@ -96,6 +96,14 @@ knows it next time — in both normal and phone mode.
 ## Expected latency on a 3070 Ti
 About 0.5–0.9 s from when you stop talking to first sound. Roughly: silence detection ~0.45 s, transcription ~0.1 s, first LLM words ~0.1 s, first audio ~0.1 s.
 
+## Conversation log
+Every conversation is saved to `conversations/YYYY-MM-DD.md` (one Markdown file per day), in both
+normal and phone mode: time, what you said (spoken or typed) and the AI's reply; interrupted replies
+are marked. Open the files in any editor.
+- **Turn off:** `LOG=0 ./run.sh` (or put `LOG=0` in `local.env`).
+- **Other folder:** `LOG_DIR=/path/to/folder ./run.sh`.
+- Private: stays on your PC and is excluded from git. Delete the files any time.
+
 ## Fully offline
 After the first start (models downloaded), the assistant never contacts the internet: `run.sh` sets
 `HF_HUB_OFFLINE=1` once the models are on disk (tested with all internet traffic blocked).

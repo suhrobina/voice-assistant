@@ -43,7 +43,8 @@ There is no test suite or linter. Changes have been verified with throwaway scri
 - Offline: `run.sh` exports `HF_HUB_OFFLINE=1` once `~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M` exists (otherwise Kokoro/Whisper ping Hugging Face on every start and print the HF_TOKEN warning). New HF models need `HF_HUB_OFFLINE=0` once. Verified offline by running with `HTTP(S)_PROXY=http://127.0.0.1:9` and `NO_PROXY=localhost,127.0.0.1`: Silero (torch.hub cache) and openWakeWord (downloaded models) also stay local.
 - Browsers require HTTPS for the mic, hence the self-signed cert. The page has no auth and binds `0.0.0.0`.
 - `requirements.txt` is a full `pip freeze` (with the cu124 extra index header). Upgrade deliberately: change, test, re-freeze, keep the header.
-- Not in git (keep it that way): `memory.md` (personal data), `local.env`, `certs/`, `voice-samples/`, `.venv/`, logs.
+- Conversation log: `log_turn()` in assistant.py, called at the end of `llm_stream` (the one path for both modes); callers pass `source="voice"|"typed"`. Files `LOG_DIR/YYYY-MM-DD.md`, session header per run. When testing, set `LOG_DIR` to a scratch path (and `MEMORY=0`) so the user's real logs and memory stay clean.
+- Not in git (keep it that way): `memory.md` and `conversations/` (personal data), `local.env`, `certs/`, `voice-samples/`, `.venv/`, logs.
 
 ## Working with this user
 

@@ -12,6 +12,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Wake word "Hey Jarvis" (openWakeWord, offline) with chime and 8 s follow-up window; `WAKE_WORD=` turns it off; works in console and phone mode (switch modes: `/wake` in the console, a switch on the phone)
 - [x] Two GPUs: `qwen3:8b` + Whisper (`int8_float16`) on the RTX 3070 Ti (Ollama pinned to it), Kokoro + desktop on the Quadro T1000 (BIOS primary display). Smarter model, no extra delay. Settings in `local.env`
 - [x] Fully offline after the first start: `HF_HUB_OFFLINE=1` in `run.sh` (verified with the internet blocked)
+- [x] Conversation log: `conversations/YYYY-MM-DD.md`, both modes, spoken/typed marked; `LOG=0` turns it off
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities
@@ -27,7 +28,6 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 ## 🔧 Convenience
 - [ ] Auto-start as a system service (phone mode always available)
 - [ ] Password for the phone page (now anyone on the Wi-Fi can open it)
-- [ ] Conversation log: save chats to files
 - [ ] Response time display: print how long each step took
 
 ## 🎙️ Voice quality

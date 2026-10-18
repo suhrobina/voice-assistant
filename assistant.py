@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 import wave
+from datetime import datetime
 
 import numpy as np
 import requests
@@ -45,6 +46,8 @@ SILENCE = float(os.getenv("SILENCE", "0.45"))            # seconds of silence = 
 BARGE_IN = os.getenv("BARGE_IN", "1") == "1"             # talk over it to interrupt; set 0 when using speakers
 MEMORY = os.getenv("MEMORY", "1") == "1"                 # long-term memory about you; 0 = off
 MEMORY_FILE = os.getenv("MEMORY_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.md"))
+LOG = os.getenv("LOG", "1") == "1"                       # save conversations to LOG_DIR (one file per day); 0 = off
+LOG_DIR = os.getenv("LOG_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "conversations"))
 WAKE_WORD = os.getenv("WAKE_WORD", "hey_jarvis")        # say it before talking; "" = off (always listening)
 FOLLOW_UP = float(os.getenv("FOLLOW_UP", "8"))           # seconds after a reply to talk without the wake word; 0 = always need it
 WAKE_SENSITIVITY = float(os.getenv("WAKE_SENSITIVITY", "0.5"))  # 0..1, higher = stricter (fewer false wake-ups)
@@ -86,7 +89,31 @@ history = [{"role": "system", "content": system_prompt()}]
 stop_llm = threading.Event()
 
 
-def llm_stream(user_text, on_token=None):
+_log_lock = threading.Lock()
+_log_sessions = set()  # day files that already have this run's session header
+
+
+def log_turn(source, user_text, reply, interrupted):
+    """Append one exchange to LOG_DIR/YYYY-MM-DD.md (plain Markdown)."""
+    if not LOG:
+        return
+    now = datetime.now()
+    path = os.path.join(LOG_DIR, f"{now:%Y-%m-%d}.md")
+    with _log_lock:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            if f.tell() == 0:
+                f.write(f"# Conversations {now:%Y-%m-%d}\n")
+            if path not in _log_sessions:
+                _log_sessions.add(path)
+                f.write(f"\n## {now:%H:%M} new session ({LLM_MODEL})\n")
+            typed = " (typed)" if source == "typed" else ""
+            note = " *(interrupted)*" if interrupted else ""
+            f.write(f"\n**{now:%H:%M} You{typed}:** {user_text}\n\n"
+                    f"**{now:%H:%M} AI:** {reply.strip() or '…'}{note}\n")
+
+
+def llm_stream(user_text, on_token=None, source="voice"):
     """Yield tokens from Ollama as they are generated."""
     history.append({"role": "user", "content": user_text})
     payload = {
@@ -98,11 +125,13 @@ def llm_stream(user_text, on_token=None):
         "options": LLM_OPTIONS,
     }
     reply = ""
+    interrupted = False
     stop_llm.clear()
     with requests.post(OLLAMA_URL, json=payload, stream=True, timeout=120) as r:
         r.raise_for_status()
         for line in r.iter_lines():
             if stop_llm.is_set():
+                interrupted = True
                 break
             if not line:
                 continue
@@ -118,6 +147,7 @@ def llm_stream(user_text, on_token=None):
                 break
     print()
     history.append({"role": "assistant", "content": reply or "(interrupted)"})
+    log_turn(source, user_text, reply, interrupted)
     if memory and worth_checking(user_text):  # skip questions and small talk
         memory.update_async(user_text, OLLAMA_URL, LLM_MODEL, LLM_OPTIONS,
                             on_change=refresh_system_prompt)
@@ -334,7 +364,7 @@ def main():
             if source == "voice":
                 print(f"\nYou: {text}")
             print("AI : ", end="", flush=True)
-            tts.feed(llm_stream(text))
+            tts.feed(llm_stream(text, source=source))
             tts.play_async(**PLAY_OPTIONS)
     except KeyboardInterrupt:
         print("\nBye!")

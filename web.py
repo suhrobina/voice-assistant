@@ -120,7 +120,8 @@ def conversation():
         print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
         send({"type": "user", "text": text})
         send({"type": "reply"})
-        tokens = llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}))
+        tokens = llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),
+                            source=source)
         if Client.muted:
             text_reply = threading.Thread(target=drain, args=(tokens,), daemon=True)
             text_reply.start()
