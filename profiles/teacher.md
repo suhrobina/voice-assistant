@@ -1,4 +1,4 @@
-label: English teacher
+label: English Teacher
 voice: bf_emma
 speed: 0.95
 temperature: 0.5
