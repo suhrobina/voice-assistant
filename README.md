@@ -17,6 +17,21 @@ BARGE_IN=0 ./run.sh
 ```
 With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes speaking.
 
+## Use it from your phone (Bluetooth headphones work too)
+```bash
+./run.sh --web
+```
+1. It prints an address like `https://192.168.1.20:8443`. Open it in your phone's browser (Chrome) — phone and server on the same Wi-Fi.
+2. The first time, the browser warns about the certificate (it is self-made). Tap **Advanced → Proceed**.
+3. Tap **Start**, allow the microphone, and just talk. Keep the page open.
+
+Notes:
+- Audio goes through whatever the phone uses, so Bluetooth headphones just work.
+- The browser's echo cancellation lets you interrupt even on the phone speaker.
+- One phone at a time; a new connection replaces the old one.
+- **From outside your home** (mobile data): install [Tailscale](https://tailscale.com) on the server and phone, then open `https://<server's Tailscale IP>:8443`. Don't open port 8443 on your router — the page has no password.
+- Settings: `PORT=9000 ./run.sh --web`; all the usual ones (`VOICE`, `LLM_MODEL`…) work too.
+
 ## Tips for the smoothest feel
 - **Use headphones.** Otherwise the assistant hears itself and interrupts. Without headphones run: `BARGE_IN=0 ./run.sh`
 - **Faster turn-taking:** `SILENCE=0.3 ./run.sh` (it may cut you off mid-pause).

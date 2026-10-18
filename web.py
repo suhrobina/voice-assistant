@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""
+Phone / browser mode for the voice assistant.
+  Same ears, brain and voice as assistant.py, but the audio comes from and
+  goes to a web page (web/index.html) instead of the local mic and speakers.
+
+  Phone browser --mic, 16 kHz PCM-->  server: Whisper -> Ollama -> Kokoro
+  Phone browser <--voice, 24 kHz PCM--
+
+Browsers allow the microphone only over HTTPS, so a self-signed certificate
+is created on first start (accept the warning once in the phone's browser).
+Start with:  ./run.sh --web
+"""
+import asyncio
+import json
+import os
+import socket
+import ssl
+import subprocess
+import threading
+from http import HTTPStatus
+from pathlib import Path
+
+from RealtimeTTS import KokoroEngine, TextToAudioStream
+from websockets.asyncio.server import serve
+from websockets.datastructures import Headers
+from websockets.http11 import Response
+
+from assistant import (BARGE_IN, LLM_MODEL, PLAY_OPTIONS, VOICE, llm_stream,
+                       make_recorder, stop_llm, warm_up_llm)
+
+# ---------------- CONFIG ----------------
+HOST = os.getenv("HOST", "0.0.0.0")            # 0.0.0.0 = reachable from your network
+PORT = int(os.getenv("PORT", "8443"))
+HTTPS = os.getenv("HTTPS", "1") == "1"         # 0 = plain HTTP (e.g. behind `tailscale serve`)
+SSL_CERT = os.getenv("SSL_CERT", "certs/cert.pem")  # created automatically if missing
+SSL_KEY = os.getenv("SSL_KEY", "certs/key.pem")
+# ----------------------------------------
+
+HERE = Path(__file__).parent
+INDEX_HTML = (HERE / "web" / "index.html").read_bytes()
+
+tts = None
+recorder = None
+
+
+class Client:
+    """The one connected phone (a new connection replaces the old one)."""
+    ws = None
+    queue = None
+    loop = None
+
+
+def send(msg):
+    """Thread-safe send to the phone: bytes = audio, dict = JSON event."""
+    ws, queue, loop = Client.ws, Client.queue, Client.loop
+    if ws is None:
+        return
+    data = msg if isinstance(msg, bytes) else json.dumps(msg)
+    loop.call_soon_threadsafe(queue.put_nowait, data)
+
+
+def interrupt(force=False):
+    """Stop the current reply on the server and the phone."""
+    if not (BARGE_IN or force):
+        return
+    stop_llm.set()
+    if tts.is_playing():
+        tts.stop()
+    # The phone may still be playing buffered audio even if the server is done
+    send({"type": "stop"})
+
+
+def conversation():
+    """Same loop as assistant.py, but replies are streamed to the phone."""
+    while True:
+        text = recorder.text().strip()
+        if not text:
+            continue
+        interrupt(force=True)
+        print(f"\nYou: {text}\nAI : ", end="", flush=True)
+        send({"type": "user", "text": text})
+        send({"type": "reply"})
+        tts.feed(llm_stream(text, on_token=lambda t: send({"type": "token", "text": t})))
+        tts.play_async(**PLAY_OPTIONS, muted=True, on_audio_chunk=send)
+
+
+async def pump(ws, queue):
+    """Send queued messages in order."""
+    while True:
+        await ws.send(await queue.get())
+
+
+async def handler(ws):
+    if Client.ws is not None:
+        await Client.ws.close()
+    queue = asyncio.Queue()
+    Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
+    print("\n📱  Phone connected", flush=True)
+    sender = asyncio.create_task(pump(ws, queue))
+    try:
+        async for msg in ws:
+            if isinstance(msg, bytes):
+                recorder.feed_audio(msg, original_sample_rate=16000)
+    finally:
+        sender.cancel()
+        if Client.ws is ws:
+            Client.ws = None
+            print("\n📱  Phone disconnected", flush=True)
+
+
+def http(connection, request):
+    """Serve the web page; let /ws through to the WebSocket handler."""
+    path = request.path.split("?")[0]
+    if path == "/ws":
+        return None
+    if path == "/":
+        headers = Headers({"Content-Type": "text/html; charset=utf-8",
+                           "Content-Length": str(len(INDEX_HTML)),
+                           "Cache-Control": "no-cache"})
+        return Response(HTTPStatus.OK, "OK", headers, INDEX_HTML)
+    return connection.respond(HTTPStatus.NOT_FOUND, "Not found\n")
+
+
+def ssl_context():
+    cert, key = HERE / SSL_CERT, HERE / SSL_KEY
+    if not cert.exists():
+        print("Creating self-signed HTTPS certificate...", flush=True)
+        cert.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+             "-days", "3650", "-subj", "/CN=voice-assistant",
+             "-keyout", str(key), "-out", str(cert)],
+            check=True, capture_output=True,
+        )
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(cert, key)
+    return ctx
+
+
+def local_ip():
+    """This machine's address on the network (no packets are sent)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+        except OSError:
+            return "localhost"
+
+
+async def main():
+    global tts, recorder
+    print("Loading voice...", flush=True)
+    tts = TextToAudioStream(KokoroEngine(voice=VOICE), muted=True)
+
+    print("Loading ears...", flush=True)
+    recorder = make_recorder(interrupt, use_microphone=False)
+
+    print(f"Loading brain ({LLM_MODEL})...", flush=True)
+    warm_up_llm()
+    threading.Thread(target=conversation, daemon=True).start()
+
+    async with serve(handler, HOST, PORT, process_request=http,
+                     ssl=ssl_context() if HTTPS else None, max_size=None):
+        scheme = "https" if HTTPS else "http"
+        print(f"\n🌐  Open on your phone:  {scheme}://{local_ip()}:{PORT}")
+        print("    (same Wi-Fi; accept the certificate warning once). Ctrl+C to quit.\n")
+        await asyncio.Future()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nBye!")
+    finally:
+        stop_llm.set()
+        if recorder:
+            recorder.shutdown()

@@ -43,7 +43,7 @@ history = [{"role": "system", "content": SYSTEM_PROMPT}]
 stop_llm = threading.Event()
 
 
-def llm_stream(user_text):
+def llm_stream(user_text, on_token=None):
     """Yield tokens from Ollama as they are generated."""
     history.append({"role": "user", "content": user_text})
     payload = {
@@ -69,6 +69,8 @@ def llm_stream(user_text):
             if token:
                 reply += token
                 print(token, end="", flush=True)
+                if on_token:
+                    on_token(token)
                 yield token
             if chunk.get("done"):
                 break
@@ -85,18 +87,9 @@ def warm_up_llm():
     )
 
 
-def main():
-    print("Loading voice...", flush=True)
-    engine = KokoroEngine(voice=VOICE)
-    tts = TextToAudioStream(engine, frames_per_buffer=256)
-
-    def interrupt():
-        if BARGE_IN and tts.is_playing():
-            stop_llm.set()
-            tts.stop()
-
-    print("Loading ears...", flush=True)
-    recorder = AudioToTextRecorder(
+def make_recorder(interrupt, **extra):
+    """Ears. `extra` overrides defaults (web.py passes use_microphone=False)."""
+    return AudioToTextRecorder(
         model=STT_MODEL,
         language=LANGUAGE,
         device="cuda",
@@ -112,7 +105,34 @@ def main():
         early_transcription_on_silence=0.2,  # start transcribing before silence timer ends
         on_vad_start=interrupt,               # barge-in (fires on actual speech)
         on_recording_start=interrupt,
+        **extra,
     )
+
+
+# How replies are cut into pieces for Kokoro (shared by local and web mode)
+PLAY_OPTIONS = dict(
+    fast_sentence_fragment=True,       # speak the first clause ASAP
+    # Text pieces sent to Kokoro (characters). Higher (30-40) = more
+    # natural intonation, but it starts speaking a bit later.
+    minimum_sentence_length=8,
+    minimum_first_fragment_length=8,
+    buffer_threshold_seconds=0.0,
+    log_synthesized_text=False,
+)
+
+
+def main():
+    print("Loading voice...", flush=True)
+    engine = KokoroEngine(voice=VOICE)
+    tts = TextToAudioStream(engine, frames_per_buffer=256)
+
+    def interrupt():
+        if BARGE_IN and tts.is_playing():
+            stop_llm.set()
+            tts.stop()
+
+    print("Loading ears...", flush=True)
+    recorder = make_recorder(interrupt)
 
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
@@ -127,15 +147,7 @@ def main():
             interrupt()
             print(f"\nYou: {text}\nAI : ", end="", flush=True)
             tts.feed(llm_stream(text))
-            tts.play_async(
-                fast_sentence_fragment=True,       # speak the first clause ASAP
-                # Text pieces sent to Kokoro (characters). Higher (30-40) = more
-                # natural intonation, but it starts speaking a bit later.
-                minimum_sentence_length=8,
-                minimum_first_fragment_length=8,
-                buffer_threshold_seconds=0.0,
-                log_synthesized_text=False,
-            )
+            tts.play_async(**PLAY_OPTIONS)
     except KeyboardInterrupt:
         print("\nBye!")
     finally:

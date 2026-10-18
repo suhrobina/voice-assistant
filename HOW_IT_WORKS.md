@@ -76,11 +76,28 @@ With **speakers** (no headphones), the microphone hears the assistant's own voic
 BARGE_IN=0 ./run.sh
 ```
 
+## Phone mode
+
+`./run.sh --web` swaps the local mic and speakers for a web page; the ears, brain and voice stay on the server:
+
+```
+ 🎧 Bluetooth ◄──► 📱 Phone browser ◄──── Wi-Fi ────► 🖥️ Server
+    headphones       mic → 16 kHz PCM   ── audio ──►   Whisper → Ollama → Kokoro
+                     plays 24 kHz PCM   ◄── audio ──   (sent as it's generated)
+```
+
+- The page and the audio share one encrypted WebSocket connection (`/ws`).
+- The server also sends small text messages: what you said, the AI's words as they arrive, and "stop" when you interrupt — so the phone drops any audio it has buffered.
+- Kokoro generates audio faster than real time, so the phone receives the reply ahead of playback and plays it back to back without gaps.
+
 ## The files
 
 | File | Role |
 |---|---|
 | `assistant.py` | Connects ears, brain and voice; runs the conversation loop |
+| `web.py` | Phone mode (`./run.sh --web`): same loop, but audio comes from / goes to a web page over a WebSocket |
+| `web/index.html` | The phone page: records the mic (16 kHz), plays the replies (24 kHz), shows the chat |
+| `certs/` | Self-signed HTTPS certificate, created on first `--web` start (browsers need HTTPS for the mic) |
 | `setup.sh` | One-time install: system packages, Ollama, the AI model, Python environment |
 | `run.sh` | Starts the assistant and tells it where the CUDA libraries are |
 | `.venv/` | Python environment with all installed packages |
