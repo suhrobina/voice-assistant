@@ -17,6 +17,8 @@ import requests
 from RealtimeSTT import AudioToTextRecorder
 from RealtimeTTS import KokoroEngine, TextToAudioStream
 
+from memory import Memory, worth_checking
+
 # ---------------- CONFIG ----------------
 # Override any of these without editing code, e.g.:
 #   VOICE=am_michael LLM_MODEL=qwen2.5:7b SILENCE=0.6 ./run.sh
@@ -27,6 +29,8 @@ LANGUAGE = os.getenv("LANGUAGE", "en")                   # "" = auto-detect
 VOICE = os.getenv("VOICE", "af_heart")                   # Kokoro voice: af_bella, am_michael, bf_emma...
 SILENCE = float(os.getenv("SILENCE", "0.45"))            # seconds of silence = end of turn
 BARGE_IN = os.getenv("BARGE_IN", "1") == "1"             # talk over it to interrupt; set 0 when using speakers
+MEMORY = os.getenv("MEMORY", "1") == "1"                 # long-term memory about you; 0 = off
+MEMORY_FILE = os.getenv("MEMORY_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.md"))
 # SYSTEM_PROMPT = the AI's instructions; edit the text below to change its personality.
 # You can add: a name ("You are Nova..."), its character (funny, calm, formal),
 # facts about you (your name, job, interests), how it should talk, and rules.
@@ -37,9 +41,31 @@ SYSTEM_PROMPT = os.getenv(
     "so answer conversationally in short sentences. No markdown, lists, emojis "
     "or code blocks. Keep most answers to 1-3 sentences unless asked for more.",
 )
+# temperature: creativity, 0.3 = focused/predictable, 1.0 = lively/random
+# num_ctx: how many tokens of conversation the model remembers
+LLM_OPTIONS = {"temperature": 0.7, "num_ctx": 4096}
 # ----------------------------------------
 
-history = [{"role": "system", "content": SYSTEM_PROMPT}]
+memory = Memory(MEMORY_FILE) if MEMORY else None
+
+
+def system_prompt():
+    return SYSTEM_PROMPT + (memory.prompt() if memory else "")
+
+
+def print_memory_status():
+    if memory:
+        print(f"🧠  Memory on: {len(memory.facts)} facts in {MEMORY_FILE}", flush=True)
+    else:
+        print("🧠  Memory off", flush=True)
+
+
+def refresh_system_prompt():
+    """Let the current conversation see newly remembered facts."""
+    history[0]["content"] = system_prompt()
+
+
+history = [{"role": "system", "content": system_prompt()}]
 stop_llm = threading.Event()
 
 
@@ -51,9 +77,7 @@ def llm_stream(user_text, on_token=None):
         "messages": history,
         "stream": True,
         "keep_alive": -1,  # keep model in VRAM -> no reload delay
-        # temperature: creativity, 0.3 = focused/predictable, 1.0 = lively/random
-        # num_ctx: how many tokens of conversation the model remembers
-        "options": {"temperature": 0.7, "num_ctx": 4096},
+        "options": LLM_OPTIONS,
     }
     reply = ""
     stop_llm.clear()
@@ -76,13 +100,16 @@ def llm_stream(user_text, on_token=None):
                 break
     print()
     history.append({"role": "assistant", "content": reply or "(interrupted)"})
+    if memory and worth_checking(user_text):  # skip questions and small talk
+        memory.update_async(user_text, OLLAMA_URL, LLM_MODEL, LLM_OPTIONS,
+                            on_change=refresh_system_prompt)
 
 
 def warm_up_llm():
     requests.post(
         OLLAMA_URL,
         json={"model": LLM_MODEL, "messages": [{"role": "user", "content": "hi"}],
-              "stream": False, "keep_alive": -1, "options": {"num_predict": 1}},
+              "stream": False, "keep_alive": -1, "options": {**LLM_OPTIONS, "num_predict": 1}},
         timeout=300,
     )
 
@@ -136,6 +163,7 @@ def main():
 
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
+    print_memory_status()
     tts.feed("Ready.").play()
 
     print("\n🎤  Speak any time. Ctrl+C to quit.\n")

@@ -27,7 +27,7 @@ from websockets.datastructures import Headers
 from websockets.http11 import Response
 
 from assistant import (BARGE_IN, LLM_MODEL, PLAY_OPTIONS, VOICE, llm_stream,
-                       make_recorder, stop_llm, warm_up_llm)
+                       make_recorder, print_memory_status, stop_llm, warm_up_llm)
 
 # ---------------- CONFIG ----------------
 HOST = os.getenv("HOST", "0.0.0.0")            # 0.0.0.0 = reachable from your network
@@ -158,6 +158,7 @@ async def main():
 
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
+    print_memory_status()
     threading.Thread(target=conversation, daemon=True).start()
 
     async with serve(handler, HOST, PORT, process_request=http,

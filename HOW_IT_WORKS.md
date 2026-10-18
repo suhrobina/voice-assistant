@@ -76,6 +76,29 @@ With **speakers** (no headphones), the microphone hears the assistant's own voic
 BARGE_IN=0 ./run.sh
 ```
 
+## Memory
+
+Short-term: during a session the whole conversation is sent to the AI on every turn
+(up to `num_ctx` = 4096 tokens, roughly 15–20 minutes; older parts drop off).
+
+Long-term (`memory.py`, on unless `MEMORY=0`):
+
+```
+ You: "I have a dog named Rex"
+        │
+        ├─► normal reply (spoken right away)
+        │
+        └─► in the background, after the reply is generated:
+              is it about you? ("I", "my", "we"… or "remember"/"forget"; questions skipped)
+                └─► the AI extracts facts as JSON  →  {"add": ["Has a dog named Rex"], "remove": []}
+                      └─► saved to memory.md, and added to the current conversation
+
+ Next start: facts from memory.md are added to the system prompt → it knows you from the first word.
+```
+
+- It uses the same AI model and settings, so nothing extra is loaded into GPU memory.
+- Safety rule: a fact is removed only when you ask to forget it, or when a new fact replaces it.
+
 ## Phone mode
 
 `./run.sh --web` swaps the local mic and speakers for a web page; the ears, brain and voice stay on the server:
@@ -95,6 +118,8 @@ BARGE_IN=0 ./run.sh
 | File | Role |
 |---|---|
 | `assistant.py` | Connects ears, brain and voice; runs the conversation loop |
+| `memory.py` | Long-term memory: extracts facts about you and keeps them in `memory.md` |
+| `memory.md` | What the assistant remembers about you (plain text, created automatically, not in git) |
 | `web.py` | Phone mode (`./run.sh --web`): same loop, but audio comes from / goes to a web page over a WebSocket |
 | `web/index.html` | The phone page: records the mic (16 kHz), plays the replies (24 kHz), shows the chat |
 | `certs/` | Self-signed HTTPS certificate, created on first `--web` start (browsers need HTTPS for the mic) |

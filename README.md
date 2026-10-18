@@ -32,6 +32,21 @@ Notes:
 - **From outside your home** (mobile data): install [Tailscale](https://tailscale.com) on the server and phone, then open `https://<server's Tailscale IP>:8443`. Don't open port 8443 on your router — the page has no password.
 - Settings: `PORT=9000 ./run.sh --web`; all the usual ones (`VOICE`, `LLM_MODEL`…) work too.
 
+## Memory (remembers you between sessions)
+On by default. When you share something about yourself ("My name is…", "I have a dog named Rex",
+"Remember that my sister's birthday is May 5th"), it's saved to `memory.md` and the assistant
+knows it next time — in both normal and phone mode.
+
+- **Forget something:** just say it — "Forget about my dog".
+- **See or edit what it knows:** open `memory.md` — one fact per line, edit or delete freely
+  (restart the assistant afterwards).
+- **Turn off:** `MEMORY=0 ./run.sh` (or `MEMORY=0 ./run.sh --web`). Then `memory.md` is
+  neither read nor written.
+- **Start over:** delete `memory.md`.
+- Questions and small talk are never saved. Small models occasionally save something odd —
+  just delete that line. `qwen2.5:7b` picks facts more accurately.
+- Stays on your server; `memory.md` is excluded from git.
+
 ## Tips for the smoothest feel
 - **Use headphones.** Otherwise the assistant hears itself and interrupts. Without headphones run: `BARGE_IN=0 ./run.sh`
 - **Faster turn-taking:** `SILENCE=0.3 ./run.sh` (it may cut you off mid-pause).
