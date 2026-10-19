@@ -170,6 +170,7 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 | `setup.sh` | One-time install: system packages, Ollama, the AI model, Python environment |
 | `requirements.txt` | Exact versions of all Python packages, so every install is identical to the tested one |
 | `run.sh` | Starts the assistant and tells it where the CUDA libraries are |
+| `install-service.sh`, `voice-assistant.service` | Optional: start phone mode automatically at boot (systemd service) |
 | `.venv/` | Python environment with all installed packages |
 | `realtimesst.log` | RealtimeSTT's debug log — useful when something breaks |
 

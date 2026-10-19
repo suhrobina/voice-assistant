@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 cd "$(dirname "$0")"
+
+# Auto-start service (install-service.sh) already running? Only one copy fits on the GPU.
+if [ -z "$VA_SERVICE" ] && command -v systemctl >/dev/null \
+    && systemctl is-active --quiet voice-assistant 2>/dev/null; then
+  echo "The voice assistant service is running (phone mode, started at boot)."
+  echo "Only one copy fits on the GPU. Stop it first:  sudo systemctl stop voice-assistant"
+  echo "(it starts again at the next boot, or now with: sudo systemctl start voice-assistant)"
+  exit 1
+fi
+
 source .venv/bin/activate
 # Let faster-whisper find the pip-installed CUDA libraries
 SITE=$(python -c 'import site; print(site.getsitepackages()[0])')

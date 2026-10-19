@@ -1,0 +1,24 @@
+# Phone mode (./run.sh --web) as a system service that starts at boot.
+# Don't copy this by hand: `sudo ./install-service.sh` fills in @USER@ and @DIR@ and installs it.
+[Unit]
+Description=Voice assistant (phone mode)
+After=network-online.target ollama.service
+Wants=network-online.target ollama.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+User=@USER@
+WorkingDirectory=@DIR@
+ExecStart=@DIR@/run.sh --web
+Environment=PYTHONUNBUFFERED=1
+# Tells run.sh it is the service (it refuses to start a second copy otherwise)
+Environment=VA_SERVICE=1
+Restart=on-failure
+RestartSec=5
+# Ctrl+C instead of a hard kill, so it shuts down cleanly
+KillSignal=SIGINT
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

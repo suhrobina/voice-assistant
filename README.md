@@ -50,6 +50,26 @@ Notes:
 - **From outside your home** (mobile data): install [Tailscale](https://tailscale.com) on the server and phone, then open `https://<server's Tailscale IP>:8443`. Don't open port 8443 on your router — the page has no password.
 - Settings: `PORT=9000 ./run.sh --web`; all the usual ones (`VOICE`, `LLM_MODEL`…) work too.
 
+### Auto-start at boot (phone mode always on)
+```bash
+sudo ./install-service.sh              # install, start now and at every boot
+sudo ./install-service.sh --uninstall  # remove
+```
+It runs `./run.sh --web` as a system service under your user (same models, memory, profiles and
+`local.env`), waits for Ollama, and restarts itself if it crashes. Nobody needs to be logged in.
+
+| What | Command |
+|---|---|
+| Is it running? | `systemctl status voice-assistant` |
+| Live log (conversation + errors) | `journalctl -u voice-assistant -f` |
+| Stop / start / restart (e.g. after code changes) | `sudo systemctl stop\|start\|restart voice-assistant` |
+
+- Only one copy fits on the GPU: while the service runs, `./run.sh` refuses to start and tells you to
+  stop the service first. It starts again at the next boot (or `sudo systemctl start voice-assistant`).
+- Models stay loaded in GPU memory all the time — stop the service before games or other GPU work.
+- The page has no password: anyone on your Wi-Fi who knows the address can use it.
+- A fixed IP for the PC (set in the router) keeps the phone's bookmark working.
+
 ## Two GPUs
 This PC: **RTX 3070 Ti** runs the AI model (`qwen3:8b`) + Whisper; **Quadro T1000** runs the voice
 (Kokoro) and the desktop. Answers start as fast as on one GPU, with the smarter model.

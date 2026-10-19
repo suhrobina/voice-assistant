@@ -12,6 +12,7 @@ Offline voice assistant on one NVIDIA GPU (RTX 3070 Ti, 8 GB): RealtimeSTT (fast
 bash setup.sh            # one-time: apt deps, Ollama + model pull, .venv from requirements.txt
 ./run.sh                 # local mode (mic + speakers; typing + Enter also works)
 ./run.sh --web           # phone mode, serves https://<ip>:8443 (self-signed cert auto-created in certs/)
+sudo ./install-service.sh [--uninstall]   # optional: phone mode as a systemd service at boot
 VOICE=am_michael LLM_MODEL=qwen2.5:7b MEMORY=0 ./run.sh   # all config is env vars (CONFIG block in assistant.py)
 .venv/bin/python -m py_compile assistant.py web.py memory.py   # quick syntax check
 ```
@@ -41,6 +42,7 @@ There is no test suite or linter. Changes have been verified with throwaway scri
 - VRAM: 3070 Ti ≈6.7 GB used (qwen3 5.5 + Whisper 1.2), ~1.1 GB free (qwen2.5: ~2.3 GB free); T1000 ≈1.1 GB (Kokoro 0.7 + desktop). Only one mode (console or web) can run at a time. `qwen2.5:7b`, `llama3.2:3b` and `qwen3:8b` are installed — don't remove any. qwen3:8b is the model in use (since 2026-10-18): before the pinning it split across both GPUs and was slow; pinned, first word 54–267 ms, same speed as qwen2.5. All Ollama requests send `"think": false` (qwen3 would otherwise reason silently before answering; other models ignore it).
 - RealtimeTTS 0.8.10 already hands Kokoro whole sentences; bigger `minimum_*_length` values change nothing. `comma_silence_duration` only applies when a piece ends at a comma; the audible pause is `SENTENCE_PAUSE`.
 - Offline: `run.sh` exports `HF_HUB_OFFLINE=1` once `~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M` exists (otherwise Kokoro/Whisper ping Hugging Face on every start and print the HF_TOKEN warning). New HF models need `HF_HUB_OFFLINE=0` once. Verified offline by running with `HTTP(S)_PROXY=http://127.0.0.1:9` and `NO_PROXY=localhost,127.0.0.1`: Silero (torch.hub cache) and openWakeWord (downloaded models) also stay local.
+- Auto-start: `install-service.sh` fills `@USER@`/`@DIR@` in `voice-assistant.service` (template in the repo) and installs `/etc/systemd/system/voice-assistant.service` (After/Wants `ollama.service`, `KillSignal=SIGINT` for a clean shutdown, `Restart=on-failure`). The unit sets `VA_SERVICE=1`; without it, `run.sh` exits if the service is active (one copy fits on the GPU) — so when testing with `./run.sh`, check `systemctl is-active voice-assistant` first. Logs: `journalctl -u voice-assistant`.
 - Browsers require HTTPS for the mic, hence the self-signed cert. The page has no auth and binds `0.0.0.0`.
 - `requirements.txt` is a full `pip freeze` (with the cu124 extra index header). Upgrade deliberately: change, test, re-freeze, keep the header.
 - Conversation log: `log_turn()` in assistant.py, called at the end of `llm_stream` (the one path for both modes); callers pass `source="voice"|"typed"`. Files `LOG_DIR/YYYY-MM-DD.md`, session header per run. When testing, set `LOG_DIR` to a scratch path (and `MEMORY=0`) so the user's real logs and memory stay clean.
