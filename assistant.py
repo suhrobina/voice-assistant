@@ -48,6 +48,9 @@ BARGE_IN = os.getenv("BARGE_IN", "1") == "1"             # talk over it to inter
 MEMORY = os.getenv("MEMORY", "1") == "1"                 # long-term memory about you; 0 = off
 MEMORY_FILE = os.getenv("MEMORY_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory", "memory.md"))
 LOG = os.getenv("LOG", "1") == "1"                       # save conversations to LOG_DIR (one file per day); 0 = off
+# Print what you say, the replies and memory facts in the console. Off by default for the auto-start
+# service (VA_SERVICE): its output goes to the system journal, so the conversation stays in LOG_DIR only.
+PRINT_CHAT = os.getenv("PRINT_CHAT", "0" if os.getenv("VA_SERVICE") else "1") == "1"
 LOG_DIR = os.getenv("LOG_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "conversations"))
 WAKE_WORD = os.getenv("WAKE_WORD", "hey_jarvis")        # say it before talking; "" = off (always listening)
 FOLLOW_UP = float(os.getenv("FOLLOW_UP", "8"))           # seconds after a reply to talk without the wake word; 0 = always need it
@@ -71,7 +74,7 @@ SYSTEM_PROMPT = os.getenv(
 LLM_OPTIONS = {"temperature": 0.7, "num_ctx": 4096}
 # ----------------------------------------
 
-memory = Memory(MEMORY_FILE) if MEMORY else None
+memory = Memory(MEMORY_FILE, verbose=PRINT_CHAT) if MEMORY else None
 
 # ---------------- PROFILES ----------------
 # profiles/<name>.md: optional "key: value" lines, a blank line, then the prompt.
@@ -182,14 +185,16 @@ def memory_changed(added=(), removed=(), learned=True):
 def memory_add(fact):
     fact = memory.remember(fact)
     if fact:
-        print(f"🧠  remembered: {fact}", flush=True)
+        if PRINT_CHAT:
+            print(f"🧠  remembered: {fact}", flush=True)
         memory_changed([fact], [], learned=False)
     return fact
 
 
 def memory_remove(fact):
     if memory.forget(fact):
-        print(f"🧠  forgot: {fact}", flush=True)
+        if PRINT_CHAT:
+            print(f"🧠  forgot: {fact}", flush=True)
         memory_changed([], [fact], learned=False)
         return True
     return False
@@ -199,8 +204,9 @@ def memory_edit(old, new):
     fact = memory.edit(old, new)
     if fact:
         merged = fact not in memory.facts  # it matched another fact, so the old one was just dropped
-        print(f"🧠  forgot: {old} (same as another fact)" if merged else
-              f"🧠  changed: {old} → {fact}", flush=True)
+        if PRINT_CHAT:
+            print(f"🧠  forgot: {old} (same as another fact)" if merged else
+                  f"🧠  changed: {old} → {fact}", flush=True)
         memory_changed([] if merged else [fact], [old], learned=False)
     return fact
 
@@ -266,13 +272,15 @@ def llm_stream(user_text, on_token=None, source="voice"):
             token = chunk.get("message", {}).get("content", "")
             if token:
                 reply += token
-                print(token, end="", flush=True)
+                if PRINT_CHAT:
+                    print(token, end="", flush=True)
                 if on_token:
                     on_token(token)
                 yield token
             if chunk.get("done"):
                 break
-    print()
+    if PRINT_CHAT:
+        print()
     history.append({"role": "assistant", "content": reply or "(interrupted)"})
     log_turn(source, user_text, reply, interrupted)
     if memory and worth_checking(user_text):  # skip questions and small talk
@@ -606,9 +614,10 @@ def main():
                 command(text)
                 continue
             interrupt(force=source == "typed")
-            if source == "voice":
-                print(f"\nYou: {text}")
-            print("AI : ", end="", flush=True)
+            if PRINT_CHAT:
+                if source == "voice":
+                    print(f"\nYou: {text}")
+                print("AI : ", end="", flush=True)
             tts.feed(speakable(llm_stream(text, source=source)))
             hold_window(recorder)  # talk over the reply to interrupt it, even in wake word mode
             tts.play_async(**PLAY_OPTIONS)

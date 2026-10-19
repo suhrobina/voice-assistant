@@ -33,7 +33,7 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from assistant import (BARGE_IN, FOLLOW_UP, SLEEP_SOUND, LLM_MODEL, PLAY_OPTIONS, make_voice,
+from assistant import (BARGE_IN, FOLLOW_UP, PRINT_CHAT, SLEEP_SOUND, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
                        stop_llm, warm_up_llm)
 from assistant import hold_window, set_wake_mode as set_recorder_wake_mode
@@ -143,7 +143,10 @@ def conversation():
                 print(f"\n🎭  {p['label']}: fresh conversation, memory kept", flush=True)
                 send({"type": "profile", "name": p["name"], "label": p["label"]})
             continue
-        print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
+        if PRINT_CHAT:
+            print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
+        else:  # service: only that a turn happened, not what was said
+            print(f"💬  {source} message", flush=True)
         send({"type": "user", "text": text})
         send({"type": "reply"})
         tokens = llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),

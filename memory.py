@@ -61,8 +61,9 @@ NEWEST_FIRST = "# Newest first."  # header marker; files without it are from bef
 
 
 class Memory:
-    def __init__(self, path):
+    def __init__(self, path, verbose=True):
         self.path = Path(path)
+        self.verbose = verbose  # print remembered/forgotten facts (off for the auto-start service)
         self.facts = []  # newest first, like the file
         if self.path.exists():
             text = self.path.read_text(encoding="utf-8")
@@ -175,9 +176,9 @@ class Memory:
             remove = []
         with _lock:
             added, removed = self.apply(add, remove)
-        for f in added:
+        for f in added if self.verbose else []:
             print(f"🧠  remembered: {f}", flush=True)
-        for f in removed:
+        for f in removed if self.verbose else []:
             print(f"🧠  forgot: {f}", flush=True)
         if (added or removed) and on_change:
             on_change(added, removed)

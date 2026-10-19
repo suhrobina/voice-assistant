@@ -74,7 +74,8 @@ It runs `./run.sh --web` as a system service under your user (same models, memor
 | What | Command |
 |---|---|
 | Is it running? | `systemctl status voice-assistant` |
-| Live log (conversation + errors) | `journalctl -u voice-assistant -f` |
+| Live log (status + errors, no conversation) | `journalctl -u voice-assistant -f` |
+| Live conversation (from your folder) | `tail -f conversations/$(date +%F).md` |
 | Stop / start / restart (e.g. after code changes) | `sudo systemctl stop\|start\|restart voice-assistant` |
 
 - Only one copy fits on the GPU: while the service runs, `./run.sh` refuses to start and tells you to
@@ -182,6 +183,9 @@ are marked. Open the files in any editor.
 - **Turn off:** `LOG=0 ./run.sh` (or put `LOG=0` in `local.env`).
 - **Other folder:** `LOG_DIR=/path/to/folder ./run.sh`.
 - Private: stays on your PC and is excluded from git. Delete the files any time.
+- The auto-start service doesn't print the conversation (what you said, replies, memory facts), so it
+  never lands in the system journal — only status lines and errors do. `PRINT_CHAT=1` turns printing on;
+  console mode prints it as before (`PRINT_CHAT=0` hides it there too).
 
 ## Fully offline
 After the first start (models downloaded), the assistant never contacts the internet: `run.sh` sets
