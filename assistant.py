@@ -59,7 +59,8 @@ SLEEP_SOUND = os.getenv("SLEEP_SOUND", "1") == "1"       # soft falling tone whe
 WAKE_SENSITIVITY = float(os.getenv("WAKE_SENSITIVITY", "0.5"))  # 0..1, higher = stricter (fewer false wake-ups)
 PROFILE = os.getenv("PROFILE", "")                       # personality from profiles/<name>.md; "" = last one chosen
 PROFILES_DIR = os.getenv("PROFILES_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles"))
-PROFILE_FILE = os.getenv("PROFILE_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "profile.txt"))  # remembers the last profile
+# Choices made while using it (active profile, save log, wake word), saved automatically; not in git
+SETTINGS_FILE = os.getenv("SETTINGS_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json"))
 # SYSTEM_PROMPT = fallback instructions when there is no profile file (profiles/default.md has the same text).
 # You can add: a name ("You are Nova..."), its character (funny, calm, formal),
 # facts about you (your name, job, interests), how it should talk, and rules.
@@ -263,20 +264,57 @@ def delete_profile(name):
     return None
 
 
-def saved_profile():
+# ---- settings.json: {"profile", "save_log", "wake_word"}, written on every change, read at start ----
+_settings_lock = threading.Lock()
+
+
+def load_settings():
+    s = {}
     try:
-        return open(PROFILE_FILE, encoding="utf-8").read().strip()
-    except OSError:
-        return ""
+        with open(SETTINGS_FILE, encoding="utf-8") as f:
+            s = json.load(f)
+    except FileNotFoundError:  # first start: take over profile.txt from older versions
+        old = os.path.join(os.path.dirname(SETTINGS_FILE), "profile.txt")
+        if os.path.isfile(old):
+            s["profile"] = open(old, encoding="utf-8").read().strip()
+            write_settings(s)
+            os.remove(old)
+    except (OSError, ValueError) as e:
+        print(f"⚠️  {SETTINGS_FILE} unreadable ({e}), using defaults", flush=True)
+    s = s if isinstance(s, dict) else {}
+    defaults = {"profile": "default", "save_log": True, "wake_word": False}
+    if any(k not in s for k in defaults):  # the file always lists every setting
+        s = {**defaults, **s}
+        write_settings(s)
+    return s
+
+
+def write_settings(s):
+    try:
+        tmp = SETTINGS_FILE + ".tmp"  # write + rename: never a half-written file
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(s, f, indent=2)
+            f.write("\n")
+        os.replace(tmp, SETTINGS_FILE)
+    except OSError as e:
+        print(f"Could not save {SETTINGS_FILE}: {e}", flush=True)
+
+
+def save_setting(key, value):
+    with _settings_lock:
+        settings[key] = value
+        write_settings(settings)
+
+
+settings = load_settings()
+
+
+def saved_profile():
+    return str(settings.get("profile", "")).strip()
 
 
 def save_profile(name):
-    try:
-        os.makedirs(os.path.dirname(PROFILE_FILE), exist_ok=True)
-        with open(PROFILE_FILE, "w", encoding="utf-8") as f:
-            f.write(name + "\n")
-    except OSError as e:
-        print(f"Could not save the profile choice: {e}", flush=True)
+    save_setting("profile", name)
 
 
 # PROFILE from the environment wins; otherwise the last one chosen; a deleted one falls back to default
@@ -351,9 +389,21 @@ _log_lock = threading.Lock()
 _log_sessions = set()  # day files that already have this run's session header
 
 
+# switched at runtime (console /log, the web menu's switch; saved): off = private, nothing saved. LOG=0 = always off
+log_on = LOG and settings.get("save_log", True) is not False
+
+
+def set_logging(on):
+    """Private mode when off (remembered in settings.json)."""
+    global log_on
+    log_on = bool(on)
+    save_setting("save_log", log_on)
+    _log_sessions.clear()  # when it's on again, the next entry starts a new session header
+
+
 def log_turn(source, user_text, reply, interrupted):
     """Append one exchange to LOG_DIR/YYYY-MM-DD.md (plain Markdown)."""
-    if not LOG:
+    if not log_on:
         return
     now = datetime.now()
     path = os.path.join(LOG_DIR, f"{now:%Y-%m-%d}.md")
@@ -373,7 +423,7 @@ def log_turn(source, user_text, reply, interrupted):
 
 def log_event(text):
     """A line like "*12:30 — switched to Chef*" in today's log, inside the current session."""
-    if not LOG:
+    if not log_on:
         return
     now = datetime.now()
     path = os.path.join(LOG_DIR, f"{now:%Y-%m-%d}.md")
@@ -630,11 +680,13 @@ def hold_window(recorder):
         recorder.listen_start = time.time()
 
 
-def set_wake_mode(recorder, on):
-    """Switch between regular talking and wake word mode at runtime."""
+def set_wake_mode(recorder, on, save=True):
+    """Switch between regular talking and wake word mode at runtime (remembered in settings.json)."""
     recorder.use_wake_words = bool(on and WAKE_WORD)
     recorder.wake_word_activation_delay = 0
     recorder.wakeword_detected = False
+    if save and WAKE_WORD:
+        save_setting("wake_word", recorder.use_wake_words)
     return recorder.use_wake_words
 
 
@@ -645,6 +697,7 @@ COMMANDS_HELP = """Commands (type and press Enter):
   /profiles    list the profiles (personalities)
   /profile X   switch to profile X (the conversation continues; /new starts over)
   /new         start a new conversation (memory stays)
+  /log off     private: stop saving the conversation log (/log on = save again)
   /memory      list what it remembers about you
   /remember X  add a fact, e.g. /remember Has a cat named Luna
   /forget N    forget fact number N (see /memory); /forget all = everything
@@ -665,6 +718,7 @@ def main():
 
     print("Loading ears...", flush=True)
     recorder = make_recorder(interrupt)
+    set_wake_mode(recorder, settings.get("wake_word", False), save=False)  # as you left it
 
     wake_name = WAKE_WORD.replace("_", " ")
 
@@ -714,6 +768,11 @@ def main():
                 tts.play_async(**PLAY_OPTIONS)
             else:
                 print(f"No profile '{words[1]}'. Type /profiles", flush=True)
+        elif words[0] == "/log":
+            if len(words) > 1 and words[1] in ("on", "off"):
+                set_logging(words[1] == "on")
+            print("📝  Conversation log on" if log_on else "🔒  Private: the conversation log is off",
+                  flush=True)
         elif words[0] == "/new":
             interrupt(force=True)
             new_conversation()

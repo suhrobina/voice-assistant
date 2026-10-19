@@ -4,6 +4,8 @@ __pycache__/
 certs/
 memory/
 profile.txt
+settings.json
+settings.json.tmp
 voice-samples/
 local.env
 conversations/

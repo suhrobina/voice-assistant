@@ -67,7 +67,7 @@ class Client:
     queue = None
     loop = None
     muted = False  # set by the page: True = text-only replies (talking is off)
-    wake_mode = False  # set by the page's switch: require the wake word
+    wake_mode = False  # require the wake word (the menu's switch; saved in settings.json)
     replying = False   # a spoken reply is playing in the browser (until "played" or an interrupt)
 
 
@@ -102,9 +102,9 @@ def wake_state(state):
     send({"type": "wake", "state": state})
 
 
-def set_wake_mode(on):
+def set_wake_mode(on, save=True):
     """The page's switch: regular talking (off) or "Hey Jarvis" first (on)."""
-    Client.wake_mode = set_recorder_wake_mode(recorder, on)
+    Client.wake_mode = set_recorder_wake_mode(recorder, on, save)
     print(f"\n🌐  Wake word {'on' if Client.wake_mode else 'off'}", flush=True)
 
 
@@ -221,7 +221,8 @@ async def handler(ws):
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n🌐  Device connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
-          "memory": memory is not None, "password": bool(PASSWORD)})
+          "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on,
+          "wake_mode": Client.wake_mode})
     send(profiles_event())
     sender = asyncio.create_task(pump(ws, queue))
     try:
@@ -264,8 +265,14 @@ async def handler(ws):
                 inbox.put(("preview", json.dumps(m.get("data") or {})))
             elif m.get("type") == "new_conversation":
                 inbox.put(("new", ""))
+            elif m.get("type") == "log":  # the menu's "Save conversation log" switch
+                assistant.set_logging(m.get("value"))
+                print("\n📝  Conversation log on" if assistant.log_on else "\n🔒  Private: conversation log off",
+                      flush=True)
+                send({"type": "log", "value": assistant.log_on})
             elif m.get("type") == "wake_mode":
                 set_wake_mode(m.get("value"))
+                send({"type": "wake_mode", "value": Client.wake_mode})
             elif m.get("type") == "played":  # the browser finished speaking the reply
                 Client.replying = False
                 open_follow_up()
@@ -402,7 +409,7 @@ async def main():
                              use_microphone=False)
     if WAKE_WORD:
         recorder.on_wakeword_timeout = close_follow_up
-    set_wake_mode(False)  # until the page says otherwise (its switch defaults to off)
+    set_wake_mode(assistant.settings.get("wake_word", False), save=False)  # as you left it
 
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()

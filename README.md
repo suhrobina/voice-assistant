@@ -9,7 +9,8 @@ unzip voice-assistant.zip && cd voice-assistant
 bash setup.sh      # once, ~10 min (downloads models)
 ./run.sh
 ```
-Wait for "Ready.", then say **"Hey Jarvis"** — a short chime means it's listening — and talk.
+Wait for "Ready.", then just talk. Type `/wake` to switch to **wake word mode** (remembered): then say
+**"Hey Jarvis"** first — a short chime means it's listening — and talk.
 For 8 seconds after each answer you can keep talking without the wake word. To interrupt an answer, just
 talk over it (or say "Hey Jarvis", which stops it at once; the wake word itself isn't sent to the AI).
 With speakers instead of headphones, use `BARGE_IN=0` — otherwise it hears itself and stops.
@@ -23,7 +24,8 @@ You can also **type** a message in the console and press Enter — voice keeps w
   say "Hey Jarvis" again. `SLEEP_SOUND=0` turns that sound off.
 - Too many false wake-ups → `WAKE_SENSITIVITY=0.7`; not reacting → `0.3` (default 0.5).
 - Web mode: the **Wake word** switch in the ☰ menu picks the mode — off = regular talking
-  (default), on = say "Hey Jarvis" first (the page chimes and shows the state above the text box). The page remembers it.
+  (default), on = say "Hey Jarvis" first (the page chimes and shows the state above the text box). It's remembered (`settings.json`) and shared
+  by all devices and the console (`/wake`).
 
 **Using speakers instead of headphones?** Start it with interruption turned off,
 otherwise the assistant hears its own voice and keeps cutting itself off:
@@ -47,7 +49,8 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
 4. Next to it, the **microphone button** mutes only the mic while talking (replies keep playing), e.g. while
    you speak to someone else; tap again to unmute.
 5. **☰** (left) opens the menu: **New conversation** (fresh start with a clean chat, memory kept; console:
-   `/new`), **Memory**, **Wake word** switch and **Log out** (with a password). The pill next to it switches **profiles**.
+   `/new`), **Memory**, **Save conversation log** switch (off = private), **Wake word** switch and
+   **Log out** (with a password). The pill next to it switches **profiles**.
 
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.
@@ -158,7 +161,7 @@ and settings (☰ → **New conversation** or console `/new` starts over). The p
 - Only installed voices and models can be chosen; `default` can be edited but not renamed or deleted.
 
 - **Switch in the console:** `/profile teacher` (`/profiles` lists them).
-- **Remembered:** it starts with the profile you chose last (saved in `profile.txt`). If that profile file was deleted, it starts with `default`.
+- **Remembered:** it starts with the profile you chose last (saved in `settings.json`). If that profile file was deleted, it starts with `default`.
 - **Force one at startup:** `PROFILE=chef ./run.sh`, or `PROFILE=chef` in `local.env` (this wins over the remembered one).
 - **Or by hand:** copy `profiles/_template.md` (it explains every setting) to e.g. `profiles/coach.md` and edit it.
   The file name is the profile name (letters, digits, `_`, `-`); files starting with `_` are not profiles. Example:
@@ -185,11 +188,20 @@ and settings (☰ → **New conversation** or console `/new` starts over). The p
 
   A wrong value (not a number, a voice or model that isn't there) is skipped with a ⚠️ warning and the normal value is used.
 
+## Saved settings (`settings.json`)
+Choices you make while using it are saved automatically in `settings.json` (project folder, not in git)
+and come back after a restart: the **active profile**, **Save conversation log** on/off and **wake word**
+on/off — shared by every device and the console. It's plain JSON; delete it to go back to the defaults.
+Settings you set up by hand (GPUs, model, password…) stay in `local.env`; `PROFILE=…` and `LOG=0` there
+(or on the command line) still win.
+
 ## Conversation log
 Every conversation is saved to `conversations/YYYY-MM-DD.md` (one Markdown file per day), in both
 console and web mode: time, what you said (spoken or typed) and the AI's reply; interrupted replies
 are marked. Open the files in any editor.
-- **Turn off:** `LOG=0 ./run.sh` (or put `LOG=0` in `local.env`).
+- **Private mode:** ☰ menu → **Save conversation log** off (console: `/log off`, `/log on`). Nothing is
+  saved until you switch it back on, also after a restart (remembered in `settings.json`). Memory works as usual.
+- **Turn off for good:** `LOG=0 ./run.sh` (or put `LOG=0` in `local.env`).
 - **Other folder:** `LOG_DIR=/path/to/folder ./run.sh`.
 - Private: stays on your PC and is excluded from git. Delete the files any time.
 - The auto-start service doesn't print the conversation (what you said, replies, memory facts), so it
