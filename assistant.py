@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 import wave
 from datetime import datetime
 
@@ -39,7 +40,8 @@ STT_COMPUTE = os.getenv("STT_COMPUTE", "float16")        # Whisper precision; in
                                                          # (T1000: 1.7 s vs 7 s with float16), Pascal (Titan Xp)
 WHISPER_GPU = int(os.getenv("WHISPER_GPU", "0"))         # GPU numbers as in `nvidia-smi -L` (run.sh sets PCI order)
 KOKORO_GPU = int(os.getenv("KOKORO_GPU", "0"))           # e.g. 1 = put the voice on a second, smaller GPU
-LANGUAGE = os.getenv("LANGUAGE", "en")                   # "" = auto-detect
+LANGUAGE = os.getenv("STT_LANGUAGE", "en")               # what you speak: "ru", ""/"auto" = detect each sentence
+LANGUAGE = "" if LANGUAGE == "auto" else LANGUAGE        # (not LANGUAGE: that's a Linux locale variable)
 VOICE = os.getenv("VOICE", "af_heart")                   # Kokoro voice: af_bella, am_michael, bf_emma...
                                                          # or a blend: "0.6*af_heart + 0.4*af_bella"
 TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))         # speaking speed; 0.9 = calmer, 1.1 = faster
@@ -69,7 +71,8 @@ SYSTEM_PROMPT = os.getenv(
     "SYSTEM_PROMPT",
     "You are a warm, helpful voice assistant. Your replies are spoken aloud, "
     "so answer conversationally in short sentences. No markdown, lists, emojis "
-    "or code blocks. Keep most answers to 1-3 sentences unless asked for more.",
+    "or code blocks. Keep most answers to 1-3 sentences unless asked for more. "
+    "Always reply in English, even if the user speaks another language (your voice can only speak English).",
 )
 # temperature: creativity, 0.3 = focused/predictable, 1.0 = lively/random
 # num_ctx: how many tokens of conversation the model remembers
@@ -464,9 +467,17 @@ def log_event(text):
                 f.write(f"\n*{now:%H:%M} — {text}*\n")
 
 
+def non_latin(text):
+    """Has letters of another script (Cyrillic, Greek, CJK...): Kokoro can't speak those."""
+    return any(c.isalpha() and not unicodedata.name(c, "").startswith("LATIN") for c in text)
+
+
 def llm_stream(user_text, on_token=None, source="voice"):
     """Yield tokens from Ollama as they are generated."""
-    history.append({"role": "user", "content": user_text})
+    # e.g. Russian: qwen3 answers in the user's language whatever the prompt says, and Kokoro would spell
+    # Cyrillic letter by letter. A reminder next to the message works (the log and the page show the original).
+    content = user_text + ("\n\n(Reply in English.)" if non_latin(user_text) else "")
+    history.append({"role": "user", "content": content})
     payload = {
         "model": LLM_MODEL,
         "messages": history,
