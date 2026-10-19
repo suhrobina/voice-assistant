@@ -55,7 +55,7 @@ SLEEP_SOUND = os.getenv("SLEEP_SOUND", "1") == "1"       # soft falling tone whe
 WAKE_SENSITIVITY = float(os.getenv("WAKE_SENSITIVITY", "0.5"))  # 0..1, higher = stricter (fewer false wake-ups)
 PROFILE = os.getenv("PROFILE", "")                       # personality from profiles/<name>.md; "" = last one chosen
 PROFILES_DIR = os.getenv("PROFILES_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles"))
-PROFILE_FILE = os.getenv("PROFILE_FILE", os.path.join(os.path.dirname(MEMORY_FILE), "profile.txt"))  # remembers the last profile
+PROFILE_FILE = os.getenv("PROFILE_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "profile.txt"))  # remembers the last profile
 # SYSTEM_PROMPT = fallback instructions when there is no profile file (profiles/default.md has the same text).
 # You can add: a name ("You are Nova..."), its character (funny, calm, formal),
 # facts about you (your name, job, interests), how it should talk, and rules.

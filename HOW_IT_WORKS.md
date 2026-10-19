@@ -164,7 +164,7 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 | `memory.py` | Long-term memory: extracts facts about you and keeps them in `memory/memory.md` |
 | `conversations/` | Daily Markdown logs of every exchange (`LOG=0` = off; not in git) |
 | `memory/memory.md` | What the assistant remembers about you (plain text, created automatically, not in git) |
-| `memory/profile.txt` | The last profile you chose, used on the next start |
+| `profile.txt` | The last profile you chose, used on the next start (not in git) |
 | `web.py` | Phone mode (`./run.sh --web`): same loop, but audio comes from / goes to a web page over a WebSocket |
 | `web/index.html` | The phone page: records the mic (16 kHz), plays the replies (24 kHz), shows the chat |
 | `certs/` | Self-signed HTTPS certificate, created on first `--web` start (browsers need HTTPS for the mic) |

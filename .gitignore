@@ -3,6 +3,7 @@ __pycache__/
 *.log
 certs/
 memory/
+profile.txt
 voice-samples/
 local.env
 conversations/

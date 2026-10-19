@@ -148,7 +148,7 @@ Each file in `profiles/` is a personality with its own prompt, voice and setting
 | `storyteller` | tells stories, slower and calmer | af_bella |
 
 - **Switch:** console `/profile teacher` (`/profiles` lists them); phone: the profile button under the text field.
-- **Remembered:** it starts with the profile you chose last (saved in `memory/profile.txt`). If that profile file was deleted, it starts with `default`.
+- **Remembered:** it starts with the profile you chose last (saved in `profile.txt`). If that profile file was deleted, it starts with `default`.
 - **Force one at startup:** `PROFILE=chef ./run.sh`, or `PROFILE=chef` in `local.env` (this wins over the remembered one).
 - **Make your own:** copy `profiles/_template.md` (it explains every setting) to e.g. `profiles/coach.md` and edit it.
   The file name is the profile name (letters, digits, `_`, `-`); files starting with `_` are not profiles. Example:
