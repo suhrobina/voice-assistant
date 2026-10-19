@@ -243,7 +243,7 @@ function onMessage(e) {
   if (typeof e.data !== 'string') return play(e.data);
   const m = JSON.parse(e.data);
   if (m.type === 'hello') {
-    wakeName = m.wake;
+    wakeName = m.wake.replace(/\b\w/g, c => c.toUpperCase());  // "hey jarvis" -> "Hey Jarvis"
     sleepSound = m.sleep_sound !== false;
     wakeBtn.hidden = !wakeName;
     memBtn.hidden = !m.memory;
@@ -409,11 +409,11 @@ async function keepAwake() {
 
 async function startMic() {
   if (!window.isSecureContext) {
-    setStatus('The mic needs https://');
+    setStatus('The Mic needs https://');
     return;
   }
   starting = true;
-  setStatus('Starting mic…');
+  setStatus('Starting Mic…');
   try {
     ensureOut();
     mic = await navigator.mediaDevices.getUserMedia({
