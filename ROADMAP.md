@@ -18,6 +18,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Memory on the web page and console: ☰ panel (list, edit, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
 - [x] Auto-start at boot: `sudo ./install-service.sh` installs web mode as a systemd service (waits for Ollama, restarts on crash, runs as the user); `run.sh` refuses a second copy while it runs
 - [x] Password for the web page: `WEB_PASSWORD` in `local.env`, lock screen, device remembered for a year (signed cookie), log out in the ☰ panel, 5 wrong tries → 30 s wait
+- [x] Profiles panel on the web page: switch, edit (voice with ▶ Test, sliders, model, prompt), new from the template, rename, duplicate, delete; only `default.md` and `_template.md` in git
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities

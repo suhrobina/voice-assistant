@@ -84,30 +84,30 @@
   #wake[hidden], #memBtn[hidden] { display: none; }
   #memBtn { width: 40px; height: 40px; background: var(--chip); color: var(--fg); }
   #memBtn svg { width: 19px; height: 19px; }
-  /* profile menu: a pill next to the memory button */
-  #profile {
+  /* profile button: a pill next to the menu button; opens the profiles panel */
+  #profileBtn {
     flex: none; min-width: 0; max-width: 55%; height: 40px; padding: 0 30px 0 16px; border-radius: 20px;
     border: 0; outline: 0; background-color: var(--chip); color: var(--fg); font: inherit; font-size: 14px;
-    text-overflow: ellipsis; appearance: none; -webkit-appearance: none; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
     background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
     background-position: right 17px center, right 13px center; background-size: 4px 4px; background-repeat: no-repeat;
   }
-  #profile[hidden] { display: none; }
+  #profileBtn[hidden] { display: none; }
   .note { text-align: center; color: var(--muted); font-size: 12px; margin: 14px 0; }
 
-  /* memory panel: slides up from the bottom */
+  /* panels (memory, profiles): slide up from the bottom */
   #shade { position: fixed; inset: 0; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .2s; }
-  #sheet {
+  .sheet {
     position: fixed; left: 0; right: 0; bottom: 0; max-width: 760px; margin: 0 auto; max-height: 75dvh;
     display: flex; flex-direction: column; background: var(--bg); border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 24px rgba(0,0,0,.18); transform: translateY(105%); transition: transform .22s ease;
     padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
-  body.mem-open #shade { opacity: 1; pointer-events: auto; }
-  body.mem-open #sheet { transform: none; }
-  #sheet .top { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 6px; }
-  #sheet h2 { margin: 0; font-size: 15px; font-weight: 600; }
-  #sheet h2 span { color: var(--muted); font-weight: 400; }
+  body.sheet-open #shade { opacity: 1; pointer-events: auto; }
+  .sheet.open { transform: none; }
+  .sheet .top { display: flex; align-items: center; gap: 4px; padding: 12px 14px 6px; }
+  .sheet h2 { flex: 1; margin: 0; font-size: 15px; font-weight: 600; }
+  .sheet h2 span { color: var(--muted); font-weight: 400; }
   .plain { border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
   .plain:hover { background: var(--card); }
   #facts { list-style: none; margin: 0; padding: 0 8px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; overflow-y: auto; flex: 1; }
@@ -130,6 +130,56 @@
   #memOff { display: none; margin: 4px 14px 12px; color: var(--muted); font-size: 13px; }
   body.mem-off #memOff { display: block; }
   body.mem-off #facts, body.mem-off #addFact, body.mem-off #clearMem, body.mem-off #memCount { display: none; }
+
+  /* profiles panel: list (tap = switch, ✎ = edit) and the editor */
+  #profListView, #profForm { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  #profListView[hidden], #profForm[hidden], #profBack[hidden] { display: none; }
+  #profList { list-style: none; margin: 0; padding: 0 8px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  #profList li { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
+  .pick {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 11px 6px; border: 0; border-radius: 8px;
+    background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer;
+  }
+  .pick:hover { background: var(--card); }
+  .check { width: 14px; flex: none; color: var(--live); font-weight: 700; }
+  .pname { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pdesc { flex: none; color: var(--muted); font-size: 12.5px; }
+  #profNew { display: block; margin: 8px auto 2px; color: var(--fg); font-size: 14px; }
+  #profForm { overflow-y: auto; padding: 0 14px; gap: 12px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); }
+  .field > span { display: flex; justify-content: space-between; }
+  .field output { color: var(--fg); }
+  .field small { font-size: 11.5px; }
+  .field input:not([type="range"]):not([type="checkbox"]), .field select, .field textarea {
+    font: inherit; font-size: 14.5px; color: var(--fg); background: var(--card);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; outline: 0; min-width: 0;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--muted); }
+  .field input:disabled { opacity: .6; }
+  .field textarea { resize: vertical; min-height: 120px; line-height: 1.45; }
+  .field input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+  .check-row { flex-direction: row; align-items: center; gap: 10px; color: var(--fg); font-size: 14px; cursor: pointer; }
+  .check-row > span { display: block; }
+  .check-row small { color: var(--muted); font-size: 12px; }
+  .check-row input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+  .check-row input:disabled + span { opacity: .55; }
+  .voice-row { display: flex; gap: 8px; }
+  .voice-row select { flex: 1; }
+  #pfTest {
+    flex: none; height: 38px; padding: 0 14px; border: 0; border-radius: 19px;
+    background: var(--chip); color: var(--fg); font: inherit; cursor: pointer;
+  }
+  #pfTest:disabled { opacity: .5; }
+  #pfError { margin: 0; min-height: 1em; color: var(--stop); font-size: 12.5px; }
+  .actions { position: sticky; bottom: 0; display: flex; align-items: center; gap: 4px; padding: 8px 0 4px; background: var(--bg); }
+  .actions .grow { flex: 1; }
+  .danger:hover { color: var(--stop); }
+  #pfDup[hidden], #pfDelete[hidden] { display: none; }
+  .primary {
+    height: 38px; padding: 0 22px; border: 0; border-radius: 19px; cursor: pointer;
+    background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 600;
+  }
+  .primary:disabled { opacity: .5; }
 
   /* lock screen: shown when the server has a password and this browser isn't logged in */
   #lock { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: var(--bg); }
@@ -159,7 +209,7 @@
       <button id="memBtn" class="round" type="button" hidden title="Menu" aria-label="Menu: what it remembers about you, log out">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
       </button>
-      <select id="profile" hidden aria-label="Profile"></select>
+      <button id="profileBtn" type="button" hidden aria-label="Profiles">Default</button>
       <span class="grow"></span>
       <button id="wake" class="round" type="button" aria-pressed="false" hidden
               title="Wake word" aria-label="Wake word on/off">
@@ -179,7 +229,7 @@
   </form>
 </div>
 <div id="shade"></div>
-<section id="sheet" aria-label="Memory" aria-hidden="true">
+<section id="sheet" class="sheet" aria-label="Memory" aria-hidden="true">
   <div class="top"><h2>Memory <span id="memCount"></span></h2>
     <button id="memClose" class="plain" type="button" aria-label="Close">✕</button></div>
   <form id="addFact">
@@ -191,6 +241,47 @@
   <ul id="facts"></ul>
   <button id="clearMem" class="plain" type="button">Forget everything</button>
   <button id="logout" class="plain" type="button" hidden>Log out of this device</button>
+</section>
+<section id="profSheet" class="sheet" aria-label="Profiles" aria-hidden="true">
+  <div class="top">
+    <button id="profBack" class="plain" type="button" hidden aria-label="Back to the list">‹</button>
+    <h2 id="profTitle">Profiles</h2>
+    <button id="profClose" class="plain" type="button" aria-label="Close">✕</button>
+  </div>
+  <div id="profListView">
+    <ul id="profList"></ul>
+    <button id="profNew" class="plain" type="button">+ New profile</button>
+  </div>
+  <form id="profForm" hidden novalidate>
+    <label class="field"><span>Name</span>
+      <input id="pfName" maxlength="40" placeholder="e.g. coach (empty = made from the label)" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <small>File: profiles/<b id="pfFile">…</b>.md · letters, digits, - and _</small></label>
+    <label class="field"><span>Label</span>
+      <input id="pfLabel" maxlength="60" placeholder="e.g. Fitness Coach" autocomplete="off"></label>
+    <div class="field"><span>Voice</span>
+      <div class="voice-row"><select id="pfVoice" aria-label="Voice"></select>
+        <button id="pfTest" type="button">▶ Test</button></div></div>
+    <label class="field"><span>Speed <output id="pfSpeedOut"></output></span>
+      <input id="pfSpeed" type="range" min="0.7" max="1.3" step="0.05"></label>
+    <label class="field"><span>Pause between sentences <output id="pfPauseOut"></output></span>
+      <input id="pfPause" type="range" min="0" max="0.6" step="0.05"></label>
+    <label class="field"><span>Temperature (0.3 focused, 0.9 lively) <output id="pfTempOut"></output></span>
+      <input id="pfTemp" type="range" min="0" max="1" step="0.05"></label>
+    <label class="field"><span>Silence before it answers <output id="pfSilenceOut"></output></span>
+      <input id="pfSilence" type="range" min="0.3" max="2" step="0.05"></label>
+    <label class="field"><span>Model</span><select id="pfModel"></select></label>
+    <label class="field check-row"><input id="pfThink" type="checkbox">
+      <span>Think first <small id="pfThinkNote">(smarter on hard questions, a few seconds slower)</small></span></label>
+    <label class="field"><span>Prompt (instructions; replies are spoken, so ask for short sentences)</span>
+      <textarea id="pfPrompt" rows="6"></textarea></label>
+    <p id="pfError" role="alert"></p>
+    <div class="actions">
+      <button id="pfDup" class="plain" type="button">Duplicate</button>
+      <button id="pfDelete" class="plain danger" type="button">Delete</button>
+      <span class="grow"></span>
+      <button id="pfSave" class="primary" type="submit">Save</button>
+    </div>
+  </form>
 </section>
 
 <script>
@@ -216,7 +307,7 @@ registerProcessor('mic', Mic);`;
 const $ = id => document.getElementById(id);
 const statusEl = $('status'), dot = $('dot'), log = $('log');
 const form = $('form'), input = $('text'), action = $('action'), wakeBtn = $('wake');
-const profileSel = $('profile');
+const profileBtn = $('profileBtn'), profSheet = $('profSheet');
 const memBtn = $('memBtn'), factsEl = $('facts'), sheet = $('sheet');
 const ICONS = {
   mic: '<svg viewBox="0 0 24 24"><rect x="3" y="10" width="2.4" height="4" rx="1.2"/><rect x="7.4" y="6.5" width="2.4" height="11" rx="1.2"/><rect x="11.8" y="3.5" width="2.4" height="17" rx="1.2"/><rect x="16.2" y="7.5" width="2.4" height="9" rx="1.2"/><rect x="20.6" y="10.5" width="2.4" height="3" rx="1.2"/></svg>',
@@ -234,6 +325,8 @@ try { wakeMode = localStorage.getItem('wakeMode') === '1'; } catch {}
 let starting = false;     // microphone is being started
 let replyEnded = false;   // server sent all audio; tell it "played" once this page is done
 let muted = true;         // replies are spoken only while talking (mic on)
+let thinkingNow = false;  // "think: on" profile: status shows Thinking… until the first word
+let previewing = false;   // "▶ Test" voice sample from the profile editor: played even while muted
 
 // Texts ending in "…" get animated dots: Connecting → Connecting. → Connecting.. → Connecting...
 const dotTimers = new Map();
@@ -308,26 +401,27 @@ function onMessage(e) {
     document.body.classList.toggle('mem-off', !memoryOn);
     memBtn.hidden = !memoryOn && !m.password;  // memory off: still the way to "Log out"
     $('logout').hidden = !m.password;
-    profileSel.innerHTML = '';
-    for (const p of m.profiles || []) profileSel.add(new Option(p.label, p.name));
-    profileSel.value = m.profile;
-    profileSel.hidden = (m.profiles || []).length < 2;
-    fitProfile();
     wakeBtn.title = `Wake word "${wakeName}": ${wakeMode ? 'on' : 'off'}`;
     idleStatus();
   }
   else if (m.type === 'wake') onWake(m.state);
-  else if (m.type === 'profile') {
-    profileSel.value = m.name;
-    fitProfile();
-    add('note', `— ${m.label} · new conversation —`);
-  }
+  else if (m.type === 'profile') add('note', `— ${m.label} · new conversation —`);
+  else if (m.type === 'profiles') onProfiles(m);
+  else if (m.type === 'profile_saved') { $('pfSave').disabled = false; showProfileList(); }
+  else if (m.type === 'profile_error') { $('pfSave').disabled = false; $('pfTest').disabled = false; $('pfError').textContent = m.error; }
+  else if (m.type === 'preview') { previewing = true; ignoreAudio = false; stopPlayback(); }
+  else if (m.type === 'preview_end') { previewing = false; $('pfTest').disabled = false; }
   else if (m.type === 'memory') onMemory(m);
-  else if (m.type === 'end') { replyEnded = true; reportPlayed(); }
-  else if (m.type === 'stop') { ignoreAudio = true; stopPlayback(); }
+  else if (m.type === 'end' && !previewing) { replyEnded = true; reportPlayed(); }
+  else if (m.type === 'stop') {
+    ignoreAudio = true; stopPlayback();
+    if (thinkingNow) { thinkingNow = false; idleStatus(); }
+  }
   else if (m.type === 'user') { add('you', m.text); }
   else if (m.type === 'reply') { ignoreAudio = false; replyEnded = false; aiText = ''; aiEl = add('ai', ''); }
+  else if (m.type === 'thinking') { thinkingNow = true; setStatus('Thinking…', true); }
   else if (m.type === 'token' && aiEl) {
+    if (thinkingNow) { thinkingNow = false; idleStatus(); }
     aiText += m.text;
     aiEl.innerHTML = format(aiText);
     log.scrollTop = log.scrollHeight;
@@ -391,7 +485,7 @@ function ensureOut() {  // browsers allow audio only after a tap
 }
 
 function play(buf) {
-  if (muted || ignoreAudio || !out) return;
+  if ((muted && !previewing) || ignoreAudio || !out) return;
   const pcm = new Int16Array(buf, 0, buf.byteLength >> 1);
   if (!pcm.length) return;
   const audio = out.createBuffer(1, pcm.length, 24000);
@@ -586,14 +680,31 @@ function editFact(span, old) {
   x.onclick = () => { finish(false); wsSend({ type: 'memory_remove', fact: old }); };
 }
 
+// ---- panels: one open at a time, sliding up over a shade ----
+function openSheet(s) {
+  closeSheets();
+  s.classList.add('open');
+  s.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('sheet-open');
+}
+
+function closeSheets() {
+  for (const s of document.querySelectorAll('.sheet.open')) {
+    s.classList.remove('open');
+    s.setAttribute('aria-hidden', 'true');
+  }
+  document.body.classList.remove('sheet-open');
+}
+
 function showMemory(open) {
-  document.body.classList.toggle('mem-open', open);
-  sheet.setAttribute('aria-hidden', String(!open));
-  if (open && memoryOn) wsSend({ type: 'memory' });
+  if (!open) return closeSheets();
+  openSheet(sheet);
+  if (memoryOn) wsSend({ type: 'memory' });
 }
 
 memBtn.onclick = () => showMemory(true);
-$('memClose').onclick = $('shade').onclick = () => showMemory(false);
+$('memClose').onclick = $('profClose').onclick = $('shade').onclick = closeSheets;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheets(); });
 $('addFact').onsubmit = e => {
   e.preventDefault();
   const fact = $('factText').value.trim();
@@ -604,11 +715,145 @@ $('clearMem').onclick = () => {
   if (confirm('Forget everything it knows about you?')) wsSend({ type: 'memory_clear' });
 };
 
-function fitProfile() {  // a <select> is as wide as its longest option; fit the chosen one
-  const ctx = (fitProfile.c ||= document.createElement('canvas').getContext('2d'));
-  ctx.font = getComputedStyle(profileSel).font;
-  profileSel.style.width = Math.ceil(ctx.measureText(profileSel.selectedOptions[0]?.text || '').width) + 48 + 'px';
+// ---- profiles panel: tap a row = switch, ✎ = edit, + New profile (from profiles/_template.md) ----
+let profiles = { list: [], current: '', template: null, voices: [], models: [], default_model: '' };
+let editingProfile = null;  // name of the profile in the editor; '' = a new one
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
 }
+
+function onProfiles(m) {
+  profiles = m;
+  const current = m.list.find(p => p.name === m.current);
+  profileBtn.textContent = current?.label || m.current;
+  profileBtn.hidden = false;
+  renderProfiles();
+}
+
+function renderProfiles() {
+  const ul = $('profList');
+  ul.innerHTML = '';
+  for (const p of profiles.list) {
+    const li = el('li'), pick = el('button', 'pick'), edit = el('button', 'plain', '✎');
+    pick.type = edit.type = 'button';
+    pick.append(el('span', 'check', p.name === profiles.current ? '✓' : ''), el('span', 'pname', p.label),
+                el('span', 'pdesc', p.voice));
+    pick.onclick = () => {
+      if (p.name !== profiles.current) wsSend({ type: 'profile', name: p.name });
+      closeSheets();
+    };
+    edit.title = 'Edit';
+    edit.setAttribute('aria-label', `Edit ${p.label}`);
+    edit.onclick = () => fillEditor(p, p.name);
+    li.append(pick, edit);
+    ul.append(li);
+  }
+}
+
+function showProfileList() {
+  editingProfile = null;
+  $('profTitle').textContent = 'Profiles';
+  $('profBack').hidden = $('profForm').hidden = true;
+  $('profListView').hidden = false;
+}
+
+const f = {
+  name: $('pfName'), label: $('pfLabel'), voice: $('pfVoice'), speed: $('pfSpeed'), pause: $('pfPause'),
+  temperature: $('pfTemp'), silence: $('pfSilence'), model: $('pfModel'), think: $('pfThink'), prompt: $('pfPrompt'),
+};
+
+function slugify(text) { return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40); }
+
+function showValues() {
+  $('pfSpeedOut').textContent = `${Number(f.speed.value).toFixed(2)}×`;
+  $('pfPauseOut').textContent = `${Number(f.pause.value).toFixed(2)} s`;
+  $('pfTempOut').textContent = Number(f.temperature.value).toFixed(2);
+  $('pfSilenceOut').textContent = `${Number(f.silence.value).toFixed(2)} s`;
+  $('pfFile').textContent = f.name.value.trim() || slugify(f.label.value) || '…';
+}
+
+function setOptions(select, items, value) {  // items: [[value, text]]; keeps an unknown current value
+  select.innerHTML = '';
+  if (value && !items.some(([v]) => v === value)) items = [[value, value], ...items];
+  for (const [v, text] of items) select.add(new Option(text, v));
+  select.value = value;
+}
+
+// p: the profile's values; old: its name ('' = new). Opens the editor view.
+function fillEditor(p, old) {
+  editingProfile = old;
+  $('profTitle').textContent = old ? 'Edit profile' : 'New profile';
+  $('profBack').hidden = $('profForm').hidden = false;
+  $('profListView').hidden = true;
+  f.label.value = p.label || '';
+  f.name.value = p.name || '';
+  f.name.disabled = old === 'default';  // the fallback profile keeps its name
+  setOptions(f.voice, profiles.voices.map(v => [v.name, `${v.name} (${v.desc})`]), p.voice);
+  setOptions(f.model, [['', `Default (${profiles.default_model})`], ...profiles.models.map(m => [m, m])], p.model || '');
+  f.speed.value = p.speed; f.pause.value = p.pause; f.temperature.value = p.temperature; f.silence.value = p.silence;
+  f.think.checked = !!p.think;
+  updateThink();
+  f.prompt.value = p.prompt || '';
+  $('pfDelete').hidden = !old || old === 'default';
+  $('pfDup').hidden = !old;
+  $('pfError').textContent = '';
+  $('pfSave').disabled = false;
+  showValues();
+  $('profForm').scrollTop = 0;
+}
+
+// "Think first" only for models that can (Ollama reports it; qwen3 yes, llama3.2/qwen2.5 no)
+function updateThink() {
+  const model = f.model.value || profiles.default_model;
+  const can = (profiles.thinking_models || []).includes(model);
+  f.think.disabled = !can;
+  if (!can) f.think.checked = false;
+  $('pfThinkNote').textContent = can ? '(smarter on hard questions, a few seconds slower)' : `(${model} can't)`;
+}
+
+function editorData() {
+  const data = {};
+  for (const [k, input] of Object.entries(f)) data[k] = input.type === 'checkbox' ? input.checked : input.value;
+  data.name = data.name.trim() || slugify(data.label);
+  return data;
+}
+
+profileBtn.onclick = () => {
+  showProfileList();
+  openSheet(profSheet);
+  wsSend({ type: 'profiles' });  // fresh list (files may have changed)
+};
+$('profBack').onclick = showProfileList;
+$('profNew').onclick = () => fillEditor({ ...profiles.template, name: '', label: '' }, '');
+for (const input of [f.speed, f.pause, f.temperature, f.silence, f.name, f.label]) input.oninput = showValues;
+f.model.onchange = updateThink;
+$('profForm').onsubmit = e => {
+  e.preventDefault();
+  $('pfError').textContent = '';
+  $('pfSave').disabled = true;
+  wsSend({ type: 'profile_save', old: editingProfile || null, data: editorData() });
+};
+$('pfDelete').onclick = () => {
+  if (confirm(`Delete the profile "${f.label.value || editingProfile}"?`)) {
+    wsSend({ type: 'profile_delete', name: editingProfile });
+    showProfileList();
+  }
+};
+$('pfDup').onclick = () => {
+  const d = editorData();
+  fillEditor({ ...d, name: `${d.name}-copy`.slice(0, 40), label: `${d.label} (copy)` }, '');
+};
+$('pfTest').onclick = () => {
+  ensureOut();  // audio needs a tap first
+  $('pfError').textContent = '';
+  $('pfTest').disabled = true;
+  setTimeout(() => { $('pfTest').disabled = false; }, 8000);  // in case no answer comes
+  wsSend({ type: 'profile_preview', data: { voice: f.voice.value, speed: f.speed.value, pause: f.pause.value, label: f.label.value } });
+};
 
 // ---- password (WEB_PASSWORD on the server): log in once, a cookie remembers this browser ----
 function showLock(on) {
@@ -638,11 +883,6 @@ $('logout').onclick = async () => {
   showMemory(false);
   if (mic) stopMic();
   ws?.close();  // reconnecting finds no cookie -> lock screen
-};
-
-profileSel.onchange = () => {
-  fitProfile();
-  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'profile', name: profileSel.value }));
 };
 
 wakeBtn.onclick = () => {

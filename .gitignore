@@ -7,3 +7,7 @@ profile.txt
 voice-samples/
 local.env
 conversations/
+# Profiles: only the default and the template are part of the project; your own stay private
+profiles/*
+!profiles/default.md
+!profiles/_template.md

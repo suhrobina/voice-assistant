@@ -163,7 +163,7 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 | File | Role |
 |---|---|
 | `assistant.py` | Connects ears, brain and voice; runs the conversation loop |
-| `profiles/` | Personalities: settings + prompt per file; switch with `/profile` or the web page's menu |
+| `profiles/` | Personalities: settings + prompt per file; switch with `/profile` or the web page's Profiles panel, which can also edit them (only `default.md` and `_template.md` are in git) |
 | `memory.py` | Long-term memory: extracts facts about you and keeps them in `memory/memory.md` |
 | `conversations/` | Daily Markdown logs of every exchange (`LOG=0` = off; not in git) |
 | `memory/memory.md` | What the assistant remembers about you (plain text, created automatically, not in git) |

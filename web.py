@@ -37,7 +37,10 @@ from assistant import (BARGE_IN, FOLLOW_UP, PRINT_CHAT, SLEEP_SOUND, LLM_MODEL, 
                        WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
                        stop_llm, warm_up_llm)
 from assistant import hold_window, set_wake_mode as set_recorder_wake_mode
-from assistant import apply_profile, list_profiles, load_profile
+from assistant import (BASE_MODEL, PROFILE_RANGES, apply_profile, available_voices, delete_profile,
+                       installed_models, list_profiles, model_can_think, profile_for_editor,
+                       set_profile_voice, thinking,
+                       set_voice, write_profile)
 from assistant import memory, memory_add, memory_clear, memory_edit, memory_remove, speakable
 import assistant  # for the current profile (assistant.profile changes on switch)
 
@@ -124,6 +127,34 @@ def memory_event(added=(), removed=(), learned=False):
           "removed": list(removed), "learned": learned})
 
 
+def profiles_event():
+    """Everything the page's profile panel and editor need."""
+    return {"type": "profiles", "current": assistant.profile["name"],
+            "list": sorted((profile_for_editor(n) for n in list_profiles()), key=lambda p: p["label"].lower()),
+            "template": profile_for_editor(""), "voices": available_voices(),
+            "models": (models := installed_models()), "default_model": BASE_MODEL, "ranges": PROFILE_RANGES,
+            "thinking_models": [m for m in models if model_can_think(m)]}
+
+
+def preview(data):
+    """▶ Test voice in the editor: two sample sentences with the chosen voice, speed and pause (not saved)."""
+    name, speed, pause = str(data.get("voice", "")), data.get("speed", 1.0), data.get("pause", 0.2)
+    if name not in {v["name"] for v in available_voices()}:
+        return send({"type": "profile_error", "error": "Choose a voice first"})
+    try:
+        speed, pause = min(max(float(speed), 0.5), 2.0), min(max(float(pause), 0.0), 1.0)
+    except (TypeError, ValueError):
+        speed, pause = 1.0, 0.2
+    label = " ".join(str(data.get("label", "")).split())[:40] or "your assistant"
+    send({"type": "preview"})  # the page plays this even while talking is off
+    set_voice(voice, name, speed)
+    tts.feed(f"Hi! I'm {label}. This is how I sound.")
+    tts.play(**{**PLAY_OPTIONS, "sentence_silence_duration": pause},  # faster than real time, so short
+             muted=True, on_audio_chunk=send)
+    set_profile_voice(voice)  # back to the active profile's voice
+    send({"type": "preview_end"})
+
+
 def drain(tokens):
     for _ in tokens:
         pass
@@ -138,10 +169,19 @@ def conversation():
         if text_reply:
             text_reply.join()
         if source == "profile":  # the page's profile menu
-            if apply_profile(text, voice):
+            if apply_profile(text, voice, recorder=recorder):
                 p = assistant.profile
                 print(f"\n🎭  {p['label']}: fresh conversation, memory kept", flush=True)
                 send({"type": "profile", "name": p["name"], "label": p["label"]})
+                send(profiles_event())
+            continue
+        if source == "profile_reload":  # the active profile was edited: new settings, same conversation
+            if apply_profile(text, voice, fresh=False, recorder=recorder):
+                print(f"\n🎭  {assistant.profile['label']}: updated", flush=True)
+                send(profiles_event())
+            continue
+        if source == "preview":
+            preview(json.loads(text))
             continue
         if PRINT_CHAT:
             print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
@@ -149,6 +189,8 @@ def conversation():
             print(f"💬  {source} message", flush=True)
         send({"type": "user", "text": text})
         send({"type": "reply"})
+        if thinking():  # "think: on": a few silent seconds before the first word
+            send({"type": "thinking"})
         tokens = llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),
                             source=source)
         if Client.muted:
@@ -174,8 +216,8 @@ async def handler(ws):
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n🌐  Device connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
-          "memory": memory is not None, "password": bool(PASSWORD), "profile": assistant.profile["name"],
-          "profiles": [{"name": n, "label": load_profile(n)["label"]} for n in list_profiles()]})
+          "memory": memory is not None, "password": bool(PASSWORD)})
+    send(profiles_event())
     sender = asyncio.create_task(pump(ws, queue))
     try:
         async for msg in ws:
@@ -192,6 +234,29 @@ async def handler(ws):
                 Client.muted = bool(m.get("value"))
             elif m.get("type") == "profile":
                 inbox.put(("profile", str(m.get("name", ""))))
+            elif m.get("type") == "profile_save":  # the editor: new, edited or renamed profile
+                old = str(m.get("old") or "") or None
+                name, error = write_profile(m.get("data") or {}, old)
+                if error:
+                    send({"type": "profile_error", "error": error})
+                    continue
+                print(f"\n🎭  Profile {name} saved", flush=True)
+                if assistant.profile["name"] in (old, name):  # the active one: apply, keep the conversation
+                    inbox.put(("profile_reload", name))
+                send({"type": "profile_saved", "name": name})
+                send(profiles_event())
+            elif m.get("type") == "profile_delete":
+                name = str(m.get("name", ""))
+                error = delete_profile(name)
+                if error:
+                    send({"type": "profile_error", "error": error})
+                    continue
+                print(f"\n🎭  Profile {name} deleted", flush=True)
+                if name == assistant.profile["name"]:
+                    inbox.put(("profile", "default"))
+                send(profiles_event())
+            elif m.get("type") == "profile_preview":
+                inbox.put(("preview", json.dumps(m.get("data") or {})))
             elif m.get("type") == "wake_mode":
                 set_wake_mode(m.get("value"))
             elif m.get("type") == "played":  # the browser finished speaking the reply

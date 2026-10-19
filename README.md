@@ -141,19 +141,21 @@ About 0.5–0.9 s from when you stop talking to first sound. Roughly: silence de
 
 ## Profiles (personalities)
 Each file in `profiles/` is a personality with its own prompt, voice and settings. Memory is shared
-(every profile knows you); switching starts a fresh conversation.
+(every profile knows you); switching starts a fresh conversation. The project ships `default` and
+`_template.md`; your own profiles stay private (not in git), like your memory.
 
-| Profile | What it does | Voice |
-|---|---|---|
-| `default` | the everyday assistant | af_heart |
-| `teacher` | English teacher: gently corrects your grammar, then answers | bf_emma (British) |
-| `chef` | cooking helper, one step at a time | am_michael |
-| `storyteller` | tells stories, slower and calmer | af_bella |
+**On the web page**, the profile button under the text field opens the **Profiles** panel:
+- **Tap a profile** to switch to it (✓ = the current one).
+- **✎** opens the editor: name, label, voice (with **▶ Test** to hear it with the chosen speed and pause, before saving),
+  speed, pause, temperature, silence, model, think first (only for models that can) and the prompt. **Save** writes `profiles/<name>.md`; saving the active profile applies it right away
+  and keeps the conversation. Renaming changes the file name; **Duplicate** makes a copy, **Delete** asks first.
+- **+ New profile** starts from `profiles/_template.md`. The name is made from the label if you leave it empty.
+- Only installed voices and models can be chosen; `default` can be edited but not renamed or deleted.
 
-- **Switch:** console `/profile teacher` (`/profiles` lists them); web page: the profile button under the text field.
+- **Switch in the console:** `/profile teacher` (`/profiles` lists them).
 - **Remembered:** it starts with the profile you chose last (saved in `profile.txt`). If that profile file was deleted, it starts with `default`.
 - **Force one at startup:** `PROFILE=chef ./run.sh`, or `PROFILE=chef` in `local.env` (this wins over the remembered one).
-- **Make your own:** copy `profiles/_template.md` (it explains every setting) to e.g. `profiles/coach.md` and edit it.
+- **Or by hand:** copy `profiles/_template.md` (it explains every setting) to e.g. `profiles/coach.md` and edit it.
   The file name is the profile name (letters, digits, `_`, `-`); files starting with `_` are not profiles. Example:
   ```
   label: Fitness coach
@@ -171,8 +173,10 @@ Each file in `profiles/` is a personality with its own prompt, voice and setting
   | `voice` | Kokoro voice: 1st letter `a` American / `b` British, 2nd `f` female / `m` male | downloaded: `af_heart`, `af_bella`, `am_michael`, `bf_emma`; others (`af_sarah`, `am_adam`, `bm_george`…) need one run with `HF_HUB_OFFLINE=0` | `af_heart` |
   | `speed` | speaking speed (0.9 calmer, 1.1 faster) | 0.8 – 1.2 | 1.0 |
   | `pause` | seconds of silence between sentences | 0 – 0.5 | 0.2 |
-  | `temperature` | creativity (0.3 focused, 0.9 lively) | 0.0 – 1.0 | 0.7 |
+  | `temperature` | 0.3 focused, 0.9 lively | 0.0 – 1.0 | 0.7 |
+  | `silence` | seconds you can pause before it answers (longer = time to think mid-sentence) | 0.3 – 2.0 | `SILENCE` (0.45) |
   | `model` | AI model; a different one takes ~20–60 s to load on every switch | installed: `qwen3:8b`, `qwen2.5:7b`, `llama3.2:3b` (`ollama list`) | `LLM_MODEL` |
+  | `think` | reason silently before answering: smarter on hard questions, a few seconds slower (the page shows *Thinking…*) | `on` / `off`; only models that can (qwen3 yes, qwen2.5/llama3.2 no) | off |
 
   A wrong value (not a number, a voice or model that isn't there) is skipped with a ⚠️ warning and the normal value is used.
 

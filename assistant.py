@@ -8,6 +8,7 @@ Local low-latency voice assistant
 
 Everything runs offline on your GPU. Tune via environment variables (see CONFIG).
 """
+import glob
 import io
 import json
 import os
@@ -73,6 +74,7 @@ SYSTEM_PROMPT = os.getenv(
 # num_ctx: how many tokens of conversation the model remembers
 LLM_OPTIONS = {"temperature": 0.7, "num_ctx": 4096}
 # ----------------------------------------
+BASE_MODEL, BASE_TEMPERATURE = LLM_MODEL, LLM_OPTIONS["temperature"]  # what profiles fall back to
 
 memory = Memory(MEMORY_FILE, verbose=PRINT_CHAT) if MEMORY else None
 
@@ -80,8 +82,18 @@ memory = Memory(MEMORY_FILE, verbose=PRINT_CHAT) if MEMORY else None
 # profiles/<name>.md: optional "key: value" lines, a blank line, then the prompt.
 # Keys a profile leaves out fall back to the settings above. profiles/_template.md explains
 # every key; files starting with "_" are not profiles.
+def on_off(value):
+    """"on"/"off" (also yes/no, true/false, 1/0) -> bool."""
+    v = value.strip().lower()
+    if v in ("on", "yes", "true", "1"):
+        return True
+    if v in ("off", "no", "false", "0"):
+        return False
+    raise ValueError(value)
+
+
 PROFILE_KEYS = {"label": str, "voice": str, "speed": float, "pause": float,
-                "temperature": float, "model": str}
+                "temperature": float, "model": str, "think": on_off, "silence": float}
 
 
 def list_profiles():
@@ -92,20 +104,28 @@ def list_profiles():
 
 def load_profile(name):
     """Settings + prompt of profiles/<name>.md (None if there is no such file)."""
-    p = {"name": name, "label": name.replace("_", " ").replace("-", " ").capitalize(),
-         "prompt": SYSTEM_PROMPT, "voice": VOICE, "speed": TTS_SPEED, "pause": SENTENCE_PAUSE,
-         "temperature": LLM_OPTIONS["temperature"], "model": LLM_MODEL}
     path = os.path.join(PROFILES_DIR, f"{name}.md")
     if not re.fullmatch(r"[\w-]+", name) or name.startswith("_") or not os.path.isfile(path):
-        return p if name == "default" else None
+        return _profile_defaults(name) if name == "default" else None
+    return _read_profile(path, name)
+
+
+def _profile_defaults(name):
+    return {"name": name, "label": name.replace("_", " ").replace("-", " ").capitalize(),
+            "prompt": SYSTEM_PROMPT, "voice": VOICE, "speed": TTS_SPEED, "pause": SENTENCE_PAUSE,
+            "temperature": BASE_TEMPERATURE, "model": BASE_MODEL, "think": False, "silence": SILENCE}
+
+
+def _read_profile(path, name):
+    p = _profile_defaults(name)
     header, body = True, []
     for line in open(path, encoding="utf-8").read().splitlines():
         m = re.match(r"^(\w+):\s*(.+)$", line)
         if header and m and m.group(1) in PROFILE_KEYS:
             try:
                 p[m.group(1)] = PROFILE_KEYS[m.group(1)](m.group(2).strip())
-            except ValueError:  # e.g. "speed: fast"
-                print(f"⚠️  profiles/{name}.md: '{line}' is not a number, ignored", flush=True)
+            except ValueError:  # e.g. "speed: fast", "think: maybe"
+                print(f"⚠️  profiles/{name}.md: '{line}' is not a valid value, ignored", flush=True)
         elif header and (not line.strip() or line.startswith("#")):
             continue
         else:
@@ -131,11 +151,116 @@ def check_profile(p):
         installed = {m["name"] for m in tags.get("models", [])}
         if installed and p["model"] not in installed:
             print(f"⚠️  Profile {p['name']}: model '{p['model']}' is not installed "
-                  f"(ollama pull {p['model']}), using {LLM_MODEL}", flush=True)
-            p["model"] = LLM_MODEL
+                  f"(ollama pull {p['model']}), using {BASE_MODEL}", flush=True)
+            p["model"] = BASE_MODEL
     except (requests.RequestException, ValueError):
         pass  # Ollama not reachable; warm_up_llm will say so
+    if p["think"] and not model_can_think(p["model"]):
+        print(f"⚠️  Profile {p['name']}: {p['model']} can't think first, think is off", flush=True)
+        p["think"] = False
     return p
+
+
+_can_think = {}
+
+
+def model_can_think(model):
+    """Ollama reports "thinking" for models that can reason before answering (qwen3: yes)."""
+    if model not in _can_think:
+        try:
+            r = requests.post(OLLAMA_URL.replace("/api/chat", "/api/show"), json={"model": model}, timeout=5)
+            _can_think[model] = "thinking" in r.json().get("capabilities", [])
+        except (requests.RequestException, ValueError):
+            return False  # don't cache: Ollama may just not be up yet
+    return _can_think[model]
+
+
+# ---- profile editor (web page): voices/models to choose from, save, delete ----
+VOICE_ACCENTS = {"a": "American", "b": "British", "e": "Spanish", "f": "French", "h": "Hindi",
+                 "i": "Italian", "j": "Japanese", "p": "Portuguese", "z": "Chinese"}
+
+
+def available_voices():
+    """Kokoro voices on this PC as [{"name", "desc"}] (offline mode can only use downloaded ones)."""
+    from huggingface_hub import constants
+    files = glob.glob(os.path.join(constants.HF_HUB_CACHE, "models--hexgrad--Kokoro-82M",
+                                   "snapshots", "*", "voices", "*.pt"))
+    names = sorted({os.path.basename(f)[:-3] for f in files})
+    return [{"name": n, "desc": f"{VOICE_ACCENTS.get(n[0], n[0])}, "
+                                f"{ {'f': 'female', 'm': 'male'}.get(n[1:2], '?') }"} for n in names]
+
+
+def installed_models():
+    try:
+        tags = requests.get(OLLAMA_URL.replace("/api/chat", "/api/tags"), timeout=5).json()
+        return sorted(m["name"] for m in tags.get("models", []))
+    except (requests.RequestException, ValueError):
+        return [BASE_MODEL]
+
+
+def profile_for_editor(name):
+    """A profile as the editor shows it; model "" = the normal model (no "model:" line)."""
+    p = load_profile(name) if name else _read_profile(os.path.join(PROFILES_DIR, "_template.md"), "")
+    return {**p, "model": "" if p["model"] == BASE_MODEL else p["model"]}
+
+
+NO_MODEL_LINE = "# model: (not set = LLM_MODEL from local.env)"
+PROFILE_RANGES = {"speed": (0.5, 2.0), "pause": (0.0, 1.0), "temperature": (0.0, 1.5), "silence": (0.3, 3.0)}
+
+
+def write_profile(data, old_name=None):
+    """Save profiles/<name>.md from the editor. Returns (name, error message or None)."""
+    name = str(data.get("name", "")).strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", name) or name.startswith("_"):
+        return name, "Name: letters, digits, - and _ only (up to 40, not starting with _)"
+    if old_name == "default" and name != "default":
+        return name, "The default profile can't be renamed"
+    path = os.path.join(PROFILES_DIR, f"{name}.md")
+    if name != old_name and os.path.exists(path):
+        return name, f"A profile named {name} already exists"
+    label = " ".join(str(data.get("label", "")).split())[:60] or name
+    voice = str(data.get("voice", "")).strip()
+    if not re.fullmatch(r"[a-z]{2}_[a-z]+", voice):
+        return name, "Choose a voice"
+    values = {}
+    for key, (low, high) in PROFILE_RANGES.items():
+        try:
+            values[key] = float(data.get(key))
+        except (TypeError, ValueError):
+            return name, f"{key} must be a number"
+        if not low <= values[key] <= high:
+            return name, f"{key} must be between {low:g} and {high:g}"
+    model = str(data.get("model", "")).strip()
+    if model and model not in installed_models():
+        return name, f"Model {model} is not installed"
+    think = data.get("think") in (True, "on", "true", "1", 1)
+    if think and not model_can_think(model or BASE_MODEL):
+        return name, f"{model or BASE_MODEL} can't think first; choose a model that can (e.g. qwen3)"
+    prompt = str(data.get("prompt", "")).strip()
+    if not prompt:
+        return name, "The prompt can't be empty"
+    lines = [f"label: {label}", f"voice: {voice}", f"speed: {values['speed']:g}",
+             f"pause: {values['pause']:g}", f"temperature: {values['temperature']:g}",
+             f"silence: {values['silence']:g}", f"think: {'on' if think else 'off'}",
+             # no model line = the normal model, so changing LLM_MODEL in local.env still works
+             f"model: {model}" if model else NO_MODEL_LINE]
+    os.makedirs(PROFILES_DIR, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n\n" + prompt[:8000] + "\n")
+    if old_name and old_name != name:  # renamed
+        os.remove(os.path.join(PROFILES_DIR, f"{old_name}.md"))
+    return name, None
+
+
+def delete_profile(name):
+    """Returns an error message or None. The default profile stays (it's the fallback)."""
+    if name == "default":
+        return "The default profile can't be deleted"
+    path = os.path.join(PROFILES_DIR, f"{name}.md")
+    if not re.fullmatch(r"[\w-]+", name) or not os.path.isfile(path):
+        return f"No profile {name}"
+    os.remove(path)
+    return None
 
 
 def saved_profile():
@@ -254,7 +379,7 @@ def llm_stream(user_text, on_token=None, source="voice"):
         "messages": history,
         "stream": True,
         "keep_alive": -1,  # keep model in VRAM -> no reload delay
-        "think": False,    # no silent "thinking" before answering (qwen3 etc.); ignored by other models
+        "think": thinking(),  # profile "think: on" = reason silently first (qwen3); otherwise answer at once
         "options": LLM_OPTIONS,
     }
     reply = ""
@@ -297,6 +422,11 @@ def speakable(tokens):
         token = token.translate(MARKDOWN_SYMBOLS)
         if token:
             yield token
+
+
+def thinking():
+    """The current profile wants the model to think first, and the model can."""
+    return profile["think"] and model_can_think(LLM_MODEL)
 
 
 def warm_up_llm():
@@ -374,7 +504,7 @@ def make_recorder(interrupt, wake_word=WAKE_WORD, on_wake=None, **extra):
         silero_sensitivity=0.4,               # higher = hears quiet speech, but also noise
         silero_use_onnx=True,
         webrtc_sensitivity=3,                 # 0 (least strict) .. 3 (most strict)
-        post_speech_silence_duration=SILENCE,
+        post_speech_silence_duration=profile["silence"],  # profiles can change it (apply_profile)
         min_length_of_recording=0.3,          # ignore sounds shorter than this (coughs, clicks)
         min_gap_between_recordings=0,
         beam_size=1,                          # 5 = slightly better transcription, slower
@@ -406,17 +536,22 @@ def make_voice():
         return KokoroEngine(voice=profile["voice"], default_speed=profile["speed"])
 
 
-def set_profile_voice(engine):
-    """Apply the profile's voice and speed. A voice in another accent needs a new Kokoro
-    pipeline; build it now on KOKORO_GPU (lazily it would land on the default GPU)."""
+def set_voice(engine, voice, speed):
+    """A voice in another accent needs a new Kokoro pipeline; build it now on KOKORO_GPU
+    (lazily it would land on the default GPU)."""
     with torch.cuda.device(KOKORO_GPU):
-        engine.set_voice(profile["voice"])
+        engine.set_voice(voice)
         engine._get_pipeline(engine.current_lang)
-    engine.set_speed(profile["speed"])
+    engine.set_speed(speed)
 
 
-def apply_profile(name, engine=None):
-    """Switch personality: settings, voice, and a fresh conversation (memory stays shared)."""
+def set_profile_voice(engine):
+    set_voice(engine, profile["voice"], profile["speed"])
+
+
+def apply_profile(name, engine=None, fresh=True, recorder=None):
+    """Switch personality: settings, voice, and a fresh conversation (memory stays shared).
+    fresh=False (the active profile was edited): keep the conversation, just use the new settings."""
     global profile, LLM_MODEL
     new = load_profile(name)
     if not new:
@@ -429,8 +564,13 @@ def apply_profile(name, engine=None):
     PLAY_OPTIONS["sentence_silence_duration"] = new["pause"]
     if engine:
         set_profile_voice(engine)
-    history[:] = [{"role": "system", "content": system_prompt()}]
-    _log_sessions.clear()  # next log entry starts a new session header
+    if recorder:  # read live by RealtimeSTT
+        recorder.post_speech_silence_duration = new["silence"]
+    if fresh:
+        history[:] = [{"role": "system", "content": system_prompt()}]
+        _log_sessions.clear()  # next log entry starts a new session header
+    else:
+        history[0] = {"role": "system", "content": system_prompt()}
     if LLM_MODEL != old_model:  # free the GPU for the new model, then load it
         try:
             requests.post(OLLAMA_URL.replace("/api/chat", "/api/generate"),
@@ -551,7 +691,7 @@ def main():
         elif words[0] == "/profile":
             if len(words) < 2:
                 print(f"Profile: {profile['label']}. Usage: /profile NAME (see /profiles)", flush=True)
-            elif apply_profile(words[1], engine):
+            elif apply_profile(words[1], engine, recorder=recorder):
                 print(f"🎭  {profile['label']}: fresh conversation, memory kept", flush=True)
                 tts.feed(f"{profile['label']}.")
                 tts.play_async(**PLAY_OPTIONS)
