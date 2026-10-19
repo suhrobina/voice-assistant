@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Phone / browser mode for the voice assistant.
+Web mode for the voice assistant: use it from a browser on any device (phone, tablet, PC).
   Same ears, brain and voice as assistant.py, but the audio comes from and
   goes to a web page (web/index.html) instead of the local mic and speakers.
 
-  Phone browser --mic, 16 kHz PCM-->  server: Whisper -> Ollama -> Kokoro
-  Phone browser <--voice, 24 kHz PCM--
+  Browser --mic, 16 kHz PCM-->  server: Whisper -> Ollama -> Kokoro
+  Browser <--voice, 24 kHz PCM--
 
 Browsers allow the microphone only over HTTPS, so a self-signed certificate
-is created on first start (accept the warning once in the phone's browser).
+is created on first start (accept the warning once in each browser).
 Start with:  ./run.sh --web
 """
 import asyncio
@@ -59,20 +59,20 @@ recorder = None
 
 
 class Client:
-    """The one connected phone (a new connection replaces the old one)."""
+    """The one connected browser (a new connection replaces the old one)."""
     ws = None
     queue = None
     loop = None
     muted = False  # set by the page: True = text-only replies (talking is off)
     wake_mode = False  # set by the page's switch: require the wake word
-    replying = False   # a spoken reply is playing on the phone (until "played" or an interrupt)
+    replying = False   # a spoken reply is playing in the browser (until "played" or an interrupt)
 
 
 inbox = queue.Queue()  # ("voice" | "typed", text) from the mic and the text box
 
 
 def send(msg):
-    """Thread-safe send to the phone: bytes = audio, dict = JSON event."""
+    """Thread-safe send to the browser: bytes = audio, dict = JSON event."""
     ws, queue, loop = Client.ws, Client.queue, Client.loop
     if ws is None:
         return
@@ -81,13 +81,13 @@ def send(msg):
 
 
 def interrupt(force=False):
-    """Stop the current reply on the server and the phone."""
+    """Stop the current reply on the server and in the browser."""
     if not (BARGE_IN or force):
         return
     stop_llm.set()
     if tts.is_playing():
         tts.stop()
-    # The phone may still be playing buffered audio even if the server is done
+    # The browser may still be playing buffered audio even if the server is done
     send({"type": "stop"})
     if Client.replying:  # wake word mode: you have FOLLOW_UP s to talk, then it sleeps
         Client.replying = False
@@ -102,11 +102,11 @@ def wake_state(state):
 def set_wake_mode(on):
     """The page's switch: regular talking (off) or "Hey Jarvis" first (on)."""
     Client.wake_mode = set_recorder_wake_mode(recorder, on)
-    print(f"\n📱  Wake word {'on' if Client.wake_mode else 'off'}", flush=True)
+    print(f"\n🌐  Wake word {'on' if Client.wake_mode else 'off'}", flush=True)
 
 
 def open_follow_up():
-    """The phone finished playing a reply: talk without the wake word for FOLLOW_UP s."""
+    """The browser finished playing a reply: talk without the wake word for FOLLOW_UP s."""
     if Client.wake_mode and FOLLOW_UP > 0:
         recorder.wake_word_activation_delay = FOLLOW_UP
         recorder.listen_start = time.time()
@@ -119,7 +119,7 @@ def close_follow_up():
 
 
 def memory_event(added=(), removed=(), learned=False):
-    """Send the fact list to the phone's memory panel; learned = the AI found it (chat note)."""
+    """Send the fact list to the page's memory panel; learned = the AI found it (chat note)."""
     send({"type": "memory", "facts": list(memory.facts), "added": list(added),
           "removed": list(removed), "learned": learned})
 
@@ -130,7 +130,7 @@ def drain(tokens):
 
 
 def conversation():
-    """Same loop as assistant.py, but replies are streamed to the phone."""
+    """Same loop as assistant.py, but replies are streamed to the browser."""
     text_reply = None  # thread generating a text-only reply (when muted)
     while True:
         source, text = inbox.get()
@@ -169,7 +169,7 @@ async def handler(ws):
         await Client.ws.close()
     queue = asyncio.Queue()
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
-    print("\n📱  Phone connected", flush=True)
+    print("\n🌐  Device connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
           "memory": memory is not None, "password": bool(PASSWORD), "profile": assistant.profile["name"],
           "profiles": [{"name": n, "label": load_profile(n)["label"]} for n in list_profiles()]})
@@ -191,7 +191,7 @@ async def handler(ws):
                 inbox.put(("profile", str(m.get("name", ""))))
             elif m.get("type") == "wake_mode":
                 set_wake_mode(m.get("value"))
-            elif m.get("type") == "played":  # the phone finished speaking the reply
+            elif m.get("type") == "played":  # the browser finished speaking the reply
                 Client.replying = False
                 open_follow_up()
             elif str(m.get("type", "")).startswith("memory") and memory:  # the page's memory panel
@@ -211,10 +211,10 @@ async def handler(ws):
         sender.cancel()
         if Client.ws is ws:
             Client.ws = None
-            print("\n📱  Phone disconnected", flush=True)
+            print("\n🌐  Device disconnected", flush=True)
 
 
-# ---- password: the page asks once, then a signed cookie remembers the phone for a year ----
+# ---- password: the page asks once, then a signed cookie remembers the browser for a year ----
 COOKIE = "va_session"
 COOKIE_AGE = 365 * 24 * 3600
 MAX_TRIES, LOCK_SECONDS = 5, 30   # wrong passwords per device before it has to wait
@@ -223,7 +223,7 @@ _failed = {}                      # ip -> (wrong tries, locked until)
 
 def session_token():
     """The cookie value: HMAC of the password with a key kept in certs/session.key.
-    Survives restarts; changing WEB_PASSWORD logs out every phone."""
+    Survives restarts; changing WEB_PASSWORD logs out every device."""
     key_file = HERE / "certs" / "session.key"
     if not key_file.exists():
         key_file.parent.mkdir(parents=True, exist_ok=True)
@@ -258,7 +258,7 @@ async def login(connection, request):
     given = unquote(request.headers.get("X-Password", ""))
     if PASSWORD and hmac.compare_digest(given.encode(), PASSWORD.encode()):
         _failed.pop(ip, None)
-        print(f"\n🔓  Phone logged in ({ip})", flush=True)
+        print(f"\n🔓  Device logged in ({ip})", flush=True)
         return cookie_response(connection, TOKEN, COOKIE_AGE)
     await asyncio.sleep(1)  # slows down guessing
     tries += 1
@@ -318,7 +318,7 @@ async def main():
     global tts, voice, recorder
     print("Loading voice...", flush=True)
     voice = make_voice()
-    # "end" = all audio of the reply was sent; the phone answers "played" when it's done playing
+    # "end" = all audio of the reply was sent; the browser answers "played" when it's done playing
     tts = TextToAudioStream(voice, muted=True,
                             on_audio_stream_stop=lambda: send({"type": "end"}))
 
@@ -332,7 +332,7 @@ async def main():
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
     print_memory_status()
-    print("🔒  Password on (phones log in once)" if PASSWORD else
+    print("🔒  Password on (each device logs in once)" if PASSWORD else
           "⚠️   No password: anyone on your Wi-Fi can use the page (set WEB_PASSWORD in local.env)",
           flush=True)
     assistant.on_memory_change = memory_event
@@ -342,7 +342,7 @@ async def main():
     async with serve(handler, HOST, PORT, process_request=http,
                      ssl=ssl_context() if HTTPS else None, max_size=None):
         scheme = "https" if HTTPS else "http"
-        print(f"\n🌐  Open on your phone:  {scheme}://{local_ip()}:{PORT}")
+        print(f"\n🌐  Open on any device:  {scheme}://{local_ip()}:{PORT}")
         print("    (same Wi-Fi; accept the certificate warning once). Ctrl+C to quit.\n")
         await asyncio.Future()
 

@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 # Auto-start service (install-service.sh) already running? Only one copy fits on the GPU.
 if [ -z "$VA_SERVICE" ] && command -v systemctl >/dev/null \
     && systemctl is-active --quiet voice-assistant 2>/dev/null; then
-  echo "The voice assistant service is running (phone mode, started at boot)."
+  echo "The voice assistant service is running (web mode, started at boot)."
   echo "Only one copy fits on the GPU. Stop it first:  sudo systemctl stop voice-assistant"
   echo "(it starts again at the next boot, or now with: sudo systemctl start voice-assistant)"
   exit 1
@@ -35,6 +35,6 @@ fi
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
 if [ "$1" = "--web" ]; then
-  exec python web.py       # phone / browser mode
+  exec python web.py       # web mode: use it from a browser on any device
 fi
 exec python assistant.py

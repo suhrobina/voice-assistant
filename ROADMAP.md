@@ -4,20 +4,20 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 
 ## ✅ Done
 - [x] Working local assistant: Whisper → Ollama → Kokoro, fixed missing packages and barge-in
-- [x] Phone mode: `./run.sh --web`, works with Bluetooth headphones
+- [x] Web mode: `./run.sh --web`, a browser on any device (phone, tablet, PC), works with Bluetooth headphones
 - [x] Long-term memory: `memory/memory.md`, can be turned off with `MEMORY=0`
 - [x] Docs: README, HOW_IT_WORKS, comments on every setting in `assistant.py`
 - [x] Typed messages: console (type + Enter) and web (text box, works without the mic; replies are spoken only while talking is on)
 - [x] Pinned package versions: `requirements.txt` (all 136 packages, verified in a fresh environment), used by `setup.sh`
-- [x] Wake word "Hey Jarvis" (openWakeWord, offline) with chime, 8 s follow-up window and a falling "sleep" tone when it stops listening (`SLEEP_SOUND=0` = off); `WAKE_WORD=` turns it off; works in console and phone mode (switch modes: `/wake` in the console, a switch on the phone)
+- [x] Wake word "Hey Jarvis" (openWakeWord, offline) with chime, 8 s follow-up window and a falling "sleep" tone when it stops listening (`SLEEP_SOUND=0` = off); `WAKE_WORD=` turns it off; works in console and web mode (switch modes: `/wake` in the console, a switch on the web page)
 - [x] Two GPUs: `qwen3:8b` + Whisper (`int8_float16`) on the RTX 3070 Ti (Ollama pinned to it), Kokoro + desktop on the Quadro T1000 (BIOS primary display). Smarter model, no extra delay. Settings in `local.env`
 - [x] Fully offline after the first start: `HF_HUB_OFFLINE=1` in `run.sh` (verified with the internet blocked)
 - [x] Conversation log: `conversations/YYYY-MM-DD.md`, both modes, spoken/typed marked; `LOG=0` turns it off
-- [x] Phone page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; composer card with 🧠 memory and profile buttons under the text (Claude app style); 👂 wake word toggle next to the talk button
-- [x] Profiles: `profiles/*.md` (prompt + voice + settings), switch with `/profile` or the phone menu; shared memory, fresh conversation on switch; last choice remembered across restarts
-- [x] Memory on the phone and console: ☰ panel (list, edit, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
-- [x] Auto-start at boot: `sudo ./install-service.sh` installs phone mode as a systemd service (waits for Ollama, restarts on crash, runs as the user); `run.sh` refuses a second copy while it runs
-- [x] Password for the phone page: `WEB_PASSWORD` in `local.env`, lock screen, phone remembered for a year (signed cookie), log out in the ☰ panel, 5 wrong tries → 30 s wait
+- [x] Web page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; composer card with 🧠 memory and profile buttons under the text (Claude app style); 👂 wake word toggle next to the talk button
+- [x] Profiles: `profiles/*.md` (prompt + voice + settings), switch with `/profile` or the web page's menu; shared memory, fresh conversation on switch; last choice remembered across restarts
+- [x] Memory on the web page and console: ☰ panel (list, edit, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
+- [x] Auto-start at boot: `sudo ./install-service.sh` installs web mode as a systemd service (waits for Ollama, restarts on crash, runs as the user); `run.sh` refuses a second copy while it runs
+- [x] Password for the web page: `WEB_PASSWORD` in `local.env`, lock screen, device remembered for a year (signed cookie), log out in the ☰ panel, 5 wrong tries → 30 s wait
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities
@@ -51,10 +51,10 @@ Available: RTX 3070 Ti 8 GB (current), Quadro T1000 4 GB, Titan Xp 12 GB.
 - [ ] Run `qwen2.5:7b` on the single 3070 Ti: doesn't fit with `distil-large-v3` (tested). Options: `STT_MODEL=small.en`, or Whisper at `int8_float16` precision
 
 ## 🚀 Bigger features
-- [ ] Vision: send a photo from the phone, ask "What's on this picture?" (`qwen2.5-vl`, needs more GPU memory)
+- [ ] Vision: send a photo from the phone or tablet camera, ask "What's on this picture?" (`qwen2.5-vl`, needs more GPU memory)
 - [ ] Custom wake word: train an openWakeWord model for any phrase (~1 h, free online notebook), or use Whisper to react to a name ("Nova, …") with no training
 - [ ] Remote access with Tailscale: use the assistant from anywhere, not just home Wi-Fi
 
 ## 💤 Parked (decided not now)
 - Other languages (e.g. Russian): English is enough. If ever: Whisper `large-v3-turbo` (distil-large-v3 is English-only), qwen3 already speaks Russian, Kokoro has no Russian → Silero TTS, routed per sentence by Cyrillic.
-- Noise suppression (RNNoise): phone mode already has it via the browser; Whisper handles light noise well and filters can even hurt accuracy. Revisit only if noise becomes a real problem — measure before/after.
+- Noise suppression (RNNoise): web mode already has it via the browser; Whisper handles light noise well and filters can even hurt accuracy. Revisit only if noise becomes a real problem — measure before/after.

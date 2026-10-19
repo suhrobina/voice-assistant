@@ -108,7 +108,7 @@ class Memory:
             self._save()
         return added, removed
 
-    # By hand (console commands, phone memory panel)
+    # By hand (console commands, the web page's memory panel)
     def remember(self, fact):
         """Add one fact; returns it, or None if empty or already known."""
         with _lock:

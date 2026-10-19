@@ -22,8 +22,8 @@ You can also **type** a message in the console and press Enter — voice keeps w
 - When it stops listening (window over, or "Hey Jarvis" and then nothing), two soft falling notes play:
   say "Hey Jarvis" again. `SLEEP_SOUND=0` turns that sound off.
 - Too many false wake-ups → `WAKE_SENSITIVITY=0.7`; not reacting → `0.3` (default 0.5).
-- Phone mode: the **👂 wake word button** next to the talk button picks the mode — off = regular talking
-  (default), on = say "Hey Jarvis" first (the phone chimes and shows the state above the text box). The page remembers it.
+- Web mode: the **👂 wake word button** next to the talk button picks the mode — off = regular talking
+  (default), on = say "Hey Jarvis" first (the page chimes and shows the state above the text box). The page remembers it.
 
 **Using speakers instead of headphones?** Start it with interruption turned off,
 otherwise the assistant hears its own voice and keeps cutting itself off:
@@ -32,11 +32,11 @@ BARGE_IN=0 ./run.sh
 ```
 With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes speaking.
 
-## Use it from your phone (Bluetooth headphones work too)
+## Use it from any device (phone, tablet, PC; Bluetooth headphones work too)
 ```bash
 ./run.sh --web
 ```
-1. It prints an address like `https://192.168.1.20:8443`. Open it in your phone's browser (Chrome) — phone and server on the same Wi-Fi.
+1. It prints an address like `https://192.168.1.20:8443`. Open it in a browser on your phone, tablet or another PC (Chrome works best) — on the same Wi-Fi as the server.
 2. The first time, the browser warns about the certificate (it is self-made). Tap **Advanced → Proceed**.
 3. One button at the right of the text field changes with what you do (like the ChatGPT/Claude apps):
    - **sound-wave icon** (field empty): start a voice conversation — you talk, it talks back.
@@ -47,9 +47,9 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
 
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.
-- The browser's echo cancellation lets you interrupt even on the phone speaker.
-- One phone at a time; a new connection replaces the old one.
-- **From outside your home** (mobile data): install [Tailscale](https://tailscale.com) on the server and phone, then open `https://<server's Tailscale IP>:8443`. Don't open port 8443 on your router.
+- The browser's echo cancellation lets you interrupt even on a phone's or laptop's speaker.
+- One device at a time; a new connection replaces the old one.
+- **From outside your home** (mobile data): install [Tailscale](https://tailscale.com) on the server and your device, then open `https://<server's Tailscale IP>:8443`. Don't open port 8443 on your router.
 - Settings: `PORT=9000 ./run.sh --web`; all the usual ones (`VOICE`, `LLM_MODEL`…) work too.
 
 ### Password
@@ -58,12 +58,12 @@ Add it to `local.env` (plain text, no quotes), then restart (`./run.sh --web`, o
 ```
 WEB_PASSWORD=your secret phrase
 ```
-- The page shows a lock screen; after the right password the phone is remembered for a year
+- The page shows a lock screen; after the right password the device is remembered for a year
   (also across restarts). Without a password set, the page stays open and the server prints a warning.
-- **Log out:** ☰ panel → *Log out of this phone* (with `MEMORY=0` the ☰ button stays, offering only that). **Changing the password** logs out every phone.
+- **Log out:** ☰ panel → *Log out of this device* (with `MEMORY=0` the ☰ button stays, offering only that). **Changing the password** logs out every device.
 - 5 wrong tries → that device waits 30 s. The password travels over HTTPS (encrypted).
 
-### Auto-start at boot (phone mode always on)
+### Auto-start at boot (web mode always on)
 ```bash
 sudo ./install-service.sh              # install, start now and at every boot
 sudo ./install-service.sh --uninstall  # remove
@@ -81,7 +81,7 @@ It runs `./run.sh --web` as a system service under your user (same models, memor
   stop the service first. It starts again at the next boot (or `sudo systemctl start voice-assistant`).
 - Models stay loaded in GPU memory all the time — stop the service before games or other GPU work.
 - Set a password (below), or anyone on your Wi-Fi who knows the address can use it.
-- A fixed IP for the PC (set in the router) keeps the phone's bookmark working.
+- A fixed IP for the PC (set in the router) keeps your devices' bookmarks working.
 
 ## Two GPUs
 This PC: **RTX 3070 Ti** runs the AI model (`qwen3:8b`) + Whisper; **Quadro T1000** runs the voice
@@ -110,11 +110,11 @@ This PC: **RTX 3070 Ti** runs the AI model (`qwen3:8b`) + Whisper; **Quadro T100
 ## Memory (remembers you between sessions)
 On by default. When you share something about yourself ("My name is…", "I have a dog named Rex",
 "Remember that my sister's birthday is May 5th"), it's saved to `memory/memory.md` and the assistant
-knows it next time — in both normal and phone mode.
+knows it next time — in both console and web mode.
 
 - **Forget something:** just say it — "Forget about my dog".
 - **See or edit what it knows:**
-  - Phone: the **☰ button** (three lines) under the text field opens the list — tap a fact to edit it, ✕ deletes it, the field adds one,
+  - Web page: the **☰ button** (three lines) under the text field opens the list — tap a fact to edit it, ✕ deletes it, the field adds one,
     "Forget everything" clears it. When it learns something, a grey *🧠 Remembered: …* line appears in the chat.
   - Console: `/memory` lists the facts, `/remember Has a cat named Luna` adds one, `/forget 3` deletes
     fact 3, `/forget all` clears everything.
@@ -149,7 +149,7 @@ Each file in `profiles/` is a personality with its own prompt, voice and setting
 | `chef` | cooking helper, one step at a time | am_michael |
 | `storyteller` | tells stories, slower and calmer | af_bella |
 
-- **Switch:** console `/profile teacher` (`/profiles` lists them); phone: the profile button under the text field.
+- **Switch:** console `/profile teacher` (`/profiles` lists them); web page: the profile button under the text field.
 - **Remembered:** it starts with the profile you chose last (saved in `profile.txt`). If that profile file was deleted, it starts with `default`.
 - **Force one at startup:** `PROFILE=chef ./run.sh`, or `PROFILE=chef` in `local.env` (this wins over the remembered one).
 - **Make your own:** copy `profiles/_template.md` (it explains every setting) to e.g. `profiles/coach.md` and edit it.
@@ -166,7 +166,7 @@ Each file in `profiles/` is a personality with its own prompt, voice and setting
 
   | Setting | What it does | Values | Default |
   |---|---|---|---|
-  | `label` | name in the phone menu, spoken on switch | any text | file name |
+  | `label` | name in the web page's menu, spoken on switch | any text | file name |
   | `voice` | Kokoro voice: 1st letter `a` American / `b` British, 2nd `f` female / `m` male | downloaded: `af_heart`, `af_bella`, `am_michael`, `bf_emma`; others (`af_sarah`, `am_adam`, `bm_george`…) need one run with `HF_HUB_OFFLINE=0` | `af_heart` |
   | `speed` | speaking speed (0.9 calmer, 1.1 faster) | 0.8 – 1.2 | 1.0 |
   | `pause` | seconds of silence between sentences | 0 – 0.5 | 0.2 |
@@ -177,7 +177,7 @@ Each file in `profiles/` is a personality with its own prompt, voice and setting
 
 ## Conversation log
 Every conversation is saved to `conversations/YYYY-MM-DD.md` (one Markdown file per day), in both
-normal and phone mode: time, what you said (spoken or typed) and the AI's reply; interrupted replies
+console and web mode: time, what you said (spoken or typed) and the AI's reply; interrupted replies
 are marked. Open the files in any editor.
 - **Turn off:** `LOG=0 ./run.sh` (or put `LOG=0` in `local.env`).
 - **Other folder:** `LOG_DIR=/path/to/folder ./run.sh`.

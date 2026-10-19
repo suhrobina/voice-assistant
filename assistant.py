@@ -169,7 +169,7 @@ def print_memory_status():
         print("🧠  Memory off", flush=True)
 
 
-on_memory_change = None  # web.py: callback(added, removed, learned) to update the phone
+on_memory_change = None  # web.py: callback(added, removed, learned) to update the browser
 
 
 def memory_changed(added=(), removed=(), learned=True):
@@ -458,7 +458,7 @@ def read_keyboard(inbox):
 
 def hold_window(recorder):
     """Wake word mode: while a reply plays, plain speech interrupts it (no wake word needed;
-    the phone's echo cancellation squashes your voice, so the wake word is often missed then).
+    the browser's echo cancellation squashes your voice, so the wake word is often missed then).
     The FOLLOW_UP window takes over when the reply ends or is interrupted. Not with BARGE_IN=0
     (speakers: it would hear itself)."""
     if recorder.use_wake_words and BARGE_IN:

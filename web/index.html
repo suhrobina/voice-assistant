@@ -131,7 +131,7 @@
   body.mem-off #memOff { display: block; }
   body.mem-off #facts, body.mem-off #addFact, body.mem-off #clearMem, body.mem-off #memCount { display: none; }
 
-  /* lock screen: shown when the server has a password and this phone isn't logged in */
+  /* lock screen: shown when the server has a password and this browser isn't logged in */
   #lock { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: var(--bg); }
   #lock[hidden] { display: none; }
   #lockForm { width: min(300px, 100%); display: flex; flex-direction: column; align-items: center; gap: 12px; }
@@ -190,7 +190,7 @@
   <p id="memOff">Memory is off (MEMORY=0 on the server).</p>
   <ul id="facts"></ul>
   <button id="clearMem" class="plain" type="button">Forget everything</button>
-  <button id="logout" class="plain" type="button" hidden>Log out of this phone</button>
+  <button id="logout" class="plain" type="button" hidden>Log out of this device</button>
 </section>
 
 <script>
@@ -232,7 +232,7 @@ let wakeMode = false;     // the switch: require the wake word (remembered)
 let sleepSound = true;    // server's SLEEP_SOUND: falling tone when it stops listening
 try { wakeMode = localStorage.getItem('wakeMode') === '1'; } catch {}
 let starting = false;     // microphone is being started
-let replyEnded = false;   // server sent all audio; tell it "played" once the phone is done
+let replyEnded = false;   // server sent all audio; tell it "played" once this page is done
 let muted = true;         // replies are spoken only while talking (mic on)
 
 // Texts ending in "…" get animated dots: Connecting → Connecting. → Connecting.. → Connecting...
@@ -610,7 +610,7 @@ function fitProfile() {  // a <select> is as wide as its longest option; fit the
   profileSel.style.width = Math.ceil(ctx.measureText(profileSel.selectedOptions[0]?.text || '').width) + 48 + 'px';
 }
 
-// ---- password (WEB_PASSWORD on the server): log in once, a cookie remembers this phone ----
+// ---- password (WEB_PASSWORD on the server): log in once, a cookie remembers this browser ----
 function showLock(on) {
   $('lock').hidden = !on;
   if (on) setTimeout(() => $('pw').focus(), 50);

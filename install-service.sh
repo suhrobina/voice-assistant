@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start phone mode (./run.sh --web) automatically at boot, as a system service.
+# Start web mode (./run.sh --web) automatically at boot, as a system service.
 #   sudo ./install-service.sh              install, enable at boot and start now
 #   sudo ./install-service.sh --uninstall  stop and remove
 set -e
@@ -17,7 +17,7 @@ if [ "$1" = "--uninstall" ]; then
   systemctl disable --now "$NAME" 2>/dev/null || true
   rm -f "$UNIT"
   systemctl daemon-reload
-  echo "Removed. Start phone mode by hand again with ./run.sh --web"
+  echo "Removed. Start web mode by hand again with ./run.sh --web"
   exit 0
 fi
 
@@ -36,8 +36,8 @@ systemctl enable --now "$NAME"
 
 PORT=$(grep -E '^PORT=' local.env 2>/dev/null | cut -d= -f2)
 echo
-echo "Installed: phone mode now starts at boot (as $RUN_AS)."
-echo "  Open on your phone:  https://$(hostname -I | awk '{print $1}'):${PORT:-8443}  (ready in ~30 s)"
+echo "Installed: web mode now starts at boot (as $RUN_AS)."
+echo "  Open on any device:  https://$(hostname -I | awk '{print $1}'):${PORT:-8443}  (ready in ~30 s)"
 echo "  Status:   systemctl status $NAME"
 echo "  Live log: journalctl -u $NAME -f"
 echo "  Stop / start / restart:  sudo systemctl stop|start|restart $NAME"

@@ -1,7 +1,7 @@
-# Phone mode (./run.sh --web) as a system service that starts at boot.
+# Web mode (./run.sh --web) as a system service that starts at boot.
 # Don't copy this by hand: `sudo ./install-service.sh` fills in @USER@ and @DIR@ and installs it.
 [Unit]
-Description=Voice assistant (phone mode)
+Description=Voice assistant (web mode)
 After=network-online.target ollama.service
 Wants=network-online.target ollama.service
 StartLimitIntervalSec=300

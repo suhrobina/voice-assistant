@@ -77,7 +77,7 @@ Because each step starts before the previous one finishes, you hear an answer ab
 
 ## Wake word ("Hey Jarvis")
 
-In normal mode, and in phone mode when the page's **👂 wake word icon** is on, the ears first wait
+In normal mode, and in web mode when the page's **👂 wake word button** is on, the ears first wait
 for the wake word, detected offline by
 **openWakeWord** (a tiny model, runs on the CPU):
 
@@ -89,14 +89,14 @@ for the wake word, detected offline by
 ```
 
 - While waiting, voice detection is off — the TV or other people can't start a turn.
-- While a reply is playing, any speech interrupts it (no wake word needed — the phone's echo cancellation
+- While a reply is playing, any speech interrupts it (no wake word needed — the browser's echo cancellation
   squashes your voice while the assistant talks, so the wake word was often missed). "Hey Jarvis" also stops
   it at once; it's removed from the start of what you said, so "Hey Jarvis" alone just stops the reply.
   After a reply (finished or interrupted) the FOLLOW_UP window runs, then it sleeps. Off with `BARGE_IN=0`.
-- Phone mode: the phone plays audio after the server has finished generating it, so the page reports
+- Web mode: the browser plays audio after the server has finished generating it, so the page reports
   `played` when it's done speaking and the server opens the window then. The server also sends the
   wake state (`listening` / `window` / `sleep`) so the page can chime and show it.
-- Switch at runtime: console `/wake` command, phone **👂 button** next to the talk button (both toggle `recorder.use_wake_words`).
+- Switch at runtime: console `/wake` command, web page **👂 button** next to the talk button (both toggle `recorder.use_wake_words`).
 - Going back to sleep (window over, or the wake word and then 5 s of silence) plays two soft falling notes —
   the opposite of the wake chime — except while a reply is still playing.
 - Settings: `WAKE_WORD` (`""` = off), `FOLLOW_UP`, `WAKE_SENSITIVITY`, `SLEEP_SOUND` (`0` = no falling tone).
@@ -139,42 +139,42 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 
 - It uses the same AI model and settings, so nothing extra is loaded into GPU memory.
 - Safety rule: a fact is removed only when you ask to forget it, or when a new fact replaces it.
-- By hand: the phone's ☰ panel and the console commands (`/memory`, `/remember`, `/forget`) change the same
+- By hand: the web page's ☰ panel and the console commands (`/memory`, `/remember`, `/forget`) change the same
   list. Every change — by hand or learned — updates the current conversation at once; learned facts also
-  show up in the phone chat as *🧠 Remembered: …*.
+  show up in the web page's chat as *🧠 Remembered: …*.
 
-## Phone mode
+## Web mode (any device with a browser)
 
 `./run.sh --web` swaps the local mic and speakers for a web page; the ears, brain and voice stay on the server:
 
 ```
- 🎧 Bluetooth ◄──► 📱 Phone browser ◄──── Wi-Fi ────► 🖥️ Server
+ 🎧 Bluetooth ◄──► 💻 Any browser  ◄──── Wi-Fi ────► 🖥️ Server
     headphones       mic → 16 kHz PCM   ── audio ──►   Whisper → Ollama → Kokoro
                      plays 24 kHz PCM   ◄── audio ──   (sent as it's generated)
 ```
 
 - The page and the audio share one encrypted WebSocket connection (`/ws`). With `WEB_PASSWORD` set, the server
-  refuses that connection until the phone has logged in once (a signed cookie remembers it).
-- The server also sends small text messages: what you said, the AI's words as they arrive, and "stop" when you interrupt — so the phone drops any audio it has buffered.
-- Kokoro generates audio faster than real time, so the phone receives the reply ahead of playback and plays it back to back without gaps.
+  refuses that connection until the device has logged in once (a signed cookie remembers it).
+- The server also sends small text messages: what you said, the AI's words as they arrive, and "stop" when you interrupt — so the browser drops any audio it has buffered.
+- Kokoro generates audio faster than real time, so the browser receives the reply ahead of playback and plays it back to back without gaps.
 
 ## The files
 
 | File | Role |
 |---|---|
 | `assistant.py` | Connects ears, brain and voice; runs the conversation loop |
-| `profiles/` | Personalities: settings + prompt per file; switch with `/profile` or the phone menu |
+| `profiles/` | Personalities: settings + prompt per file; switch with `/profile` or the web page's menu |
 | `memory.py` | Long-term memory: extracts facts about you and keeps them in `memory/memory.md` |
 | `conversations/` | Daily Markdown logs of every exchange (`LOG=0` = off; not in git) |
 | `memory/memory.md` | What the assistant remembers about you (plain text, created automatically, not in git) |
 | `profile.txt` | The last profile you chose, used on the next start (not in git) |
-| `web.py` | Phone mode (`./run.sh --web`): same loop, but audio comes from / goes to a web page over a WebSocket |
-| `web/index.html` | The phone page: records the mic (16 kHz), plays the replies (24 kHz), shows the chat |
+| `web.py` | Web mode (`./run.sh --web`): same loop, but audio comes from / goes to a web page over a WebSocket |
+| `web/index.html` | The web page: records the mic (16 kHz), plays the replies (24 kHz), shows the chat |
 | `certs/` | Self-signed HTTPS certificate, created on first `--web` start (browsers need HTTPS for the mic) |
 | `setup.sh` | One-time install: system packages, Ollama, the AI model, Python environment |
 | `requirements.txt` | Exact versions of all Python packages, so every install is identical to the tested one |
 | `run.sh` | Starts the assistant and tells it where the CUDA libraries are |
-| `install-service.sh`, `voice-assistant.service` | Optional: start phone mode automatically at boot (systemd service) |
+| `install-service.sh`, `voice-assistant.service` | Optional: start web mode automatically at boot (systemd service) |
 | `.venv/` | Python environment with all installed packages |
 | `realtimesst.log` | RealtimeSTT's debug log — useful when something breaks |
 
