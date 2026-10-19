@@ -123,6 +123,29 @@
   #factText { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--fg); font: inherit; }
   #clearMem { display: block; margin: 4px auto 0; font-size: 12.5px; }
   #clearMem:hover { color: var(--stop); }
+  #logout { display: block; margin: 0 auto; font-size: 12.5px; }
+  #logout[hidden], #clearMem[hidden] { display: none; }
+  /* MEMORY=0 on the server: the panel only offers "Log out" */
+  #memOff { display: none; margin: 4px 14px 12px; color: var(--muted); font-size: 13px; }
+  body.mem-off #memOff { display: block; }
+  body.mem-off #facts, body.mem-off #addFact, body.mem-off #clearMem, body.mem-off #memCount { display: none; }
+
+  /* lock screen: shown when the server has a password and this phone isn't logged in */
+  #lock { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: var(--bg); }
+  #lock[hidden] { display: none; }
+  #lockForm { width: min(300px, 100%); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  #lockForm svg { width: 34px; height: 34px; fill: var(--muted); }
+  #lockForm h1 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  #pw {
+    width: 100%; height: 42px; padding: 0 16px; border: 1px solid var(--line); border-radius: 21px; outline: 0;
+    background: var(--card); color: var(--fg); font: inherit; text-align: center;
+  }
+  #pw:focus { border-color: var(--muted); }
+  #unlock {
+    width: 100%; height: 42px; border: 0; border-radius: 21px; cursor: pointer;
+    background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 600;
+  }
+  #lockMsg { min-height: 1.2em; margin: 0; color: var(--muted); font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -132,8 +155,8 @@
   <form id="form">
     <textarea id="text" rows="1" placeholder="Message…" autocomplete="off" enterkeyhint="enter"></textarea>
     <div class="row">
-      <button id="memBtn" class="round" type="button" hidden title="Memory" aria-label="What it remembers about you">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3C9.23 3 6.19 5.95 6 9.66L4.08 12.2c-.25.33 0 .8.4.8H6v3c0 1.1.9 2 2 2h1v3h7v-4.68c2.36-1.12 4-3.53 4-6.32 0-3.87-3.13-7-7-7zm0 2c2.76 0 5 2.24 5 5 0 2.05-1.24 3.89-3.14 4.66L14 15.1V19h-3v-3H8v-4.6l-.6-.8.55-.73.05-.11C8.15 7.05 10.36 5 13 5zm-1.5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm3.5 1a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm-2 3a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
+      <button id="memBtn" class="round" type="button" hidden title="Menu" aria-label="Menu: what it remembers about you, log out">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
       </button>
       <select id="profile" hidden aria-label="Profile"></select>
       <span class="grow"></span>
@@ -145,10 +168,20 @@
     </div>
   </form>
 </footer>
+<div id="lock" hidden>
+  <form id="lockForm">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14z"/></svg>
+    <h1>Voice Assistant</h1>
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password" enterkeyhint="go" aria-label="Password">
+    <button id="unlock" type="submit">Unlock</button>
+    <p id="lockMsg" role="status"></p>
+  </form>
+</div>
 <div id="shade"></div>
 <section id="sheet" aria-label="Memory" aria-hidden="true">
   <div class="top"><h2>Memory <span id="memCount"></span></h2>
     <button id="memClose" class="plain" type="button" aria-label="Close">✕</button></div>
+  <p id="memOff">Memory is off (MEMORY=0 on the server).</p>
   <ul id="facts"></ul>
   <form id="addFact">
     <input id="factText" placeholder="Add a fact, e.g. Has a cat named Luna" autocomplete="off" enterkeyhint="done">
@@ -156,6 +189,7 @@
       <svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></button>
   </form>
   <button id="clearMem" class="plain" type="button">Forget everything</button>
+  <button id="logout" class="plain" type="button" hidden>Log out of this phone</button>
 </section>
 
 <script>
@@ -223,7 +257,16 @@ function add(cls, text) {
 }
 
 // ---- connection (opens on page load, reconnects automatically) ----
-function connect() {
+// Ask the server first: 204 = open the socket, 401 = password needed (lock screen), no answer = retry
+async function connect() {
+  let status = 0;
+  try { status = (await fetch('/auth', { cache: 'no-store' })).status; } catch {}
+  if (status === 401) return showLock(true);
+  if (status !== 204) { setStatus('Reconnecting…'); setTimeout(connect, 2000); return; }
+  openSocket();
+}
+
+function openSocket() {
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => {
@@ -246,7 +289,10 @@ function onMessage(e) {
     wakeName = m.wake.replace(/\b\w/g, c => c.toUpperCase());  // "hey jarvis" -> "Hey Jarvis"
     sleepSound = m.sleep_sound !== false;
     wakeBtn.hidden = !wakeName;
-    memBtn.hidden = !m.memory;
+    memoryOn = !!m.memory;
+    document.body.classList.toggle('mem-off', !memoryOn);
+    memBtn.hidden = !memoryOn && !m.password;  // memory off: still the way to "Log out"
+    $('logout').hidden = !m.password;
     profileSel.innerHTML = '';
     for (const p of m.profiles || []) profileSel.add(new Option(p.label, p.name));
     profileSel.value = m.profile;
@@ -465,7 +511,7 @@ function onMemory(m) {
   }
 }
 
-let facts = [], editing = false;
+let facts = [], editing = false, memoryOn = true;
 
 function renderFacts() {
   $('memCount').textContent = `· ${facts.length} fact${facts.length === 1 ? '' : 's'}`;
@@ -528,7 +574,7 @@ function editFact(span, old) {
 function showMemory(open) {
   document.body.classList.toggle('mem-open', open);
   sheet.setAttribute('aria-hidden', String(!open));
-  if (open) wsSend({ type: 'memory' });
+  if (open && memoryOn) wsSend({ type: 'memory' });
 }
 
 memBtn.onclick = () => showMemory(true);
@@ -548,6 +594,36 @@ function fitProfile() {  // a <select> is as wide as its longest option; fit the
   ctx.font = getComputedStyle(profileSel).font;
   profileSel.style.width = Math.ceil(ctx.measureText(profileSel.selectedOptions[0]?.text || '').width) + 48 + 'px';
 }
+
+// ---- password (WEB_PASSWORD on the server): log in once, a cookie remembers this phone ----
+function showLock(on) {
+  $('lock').hidden = !on;
+  if (on) setTimeout(() => $('pw').focus(), 50);
+}
+
+$('lockForm').onsubmit = async e => {
+  e.preventDefault();
+  const msg = $('lockMsg'), pw = $('pw').value;
+  if (!pw) return;
+  msg.textContent = 'Checking…';
+  let r;
+  try {  // encoded: header values must be plain ASCII
+    r = await fetch('/login', { headers: { 'X-Password': encodeURIComponent(pw) }, cache: 'no-store' });
+  } catch { msg.textContent = 'Server not reachable'; return; }
+  if (r.ok) {
+    $('pw').value = ''; msg.textContent = '';
+    showLock(false);
+    connect();
+  } else if (r.status === 429) msg.textContent = `Too many tries. Wait ${(await r.text()).trim()} s`;
+  else { msg.textContent = 'Wrong password'; $('pw').select(); }
+};
+
+$('logout').onclick = async () => {
+  try { await fetch('/logout', { cache: 'no-store' }); } catch {}
+  showMemory(false);
+  if (mic) stopMic();
+  ws?.close();  // reconnecting finds no cookie -> lock screen
+};
 
 profileSel.onchange = () => {
   fitProfile();

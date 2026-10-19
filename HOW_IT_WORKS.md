@@ -136,7 +136,7 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 
 - It uses the same AI model and settings, so nothing extra is loaded into GPU memory.
 - Safety rule: a fact is removed only when you ask to forget it, or when a new fact replaces it.
-- By hand: the phone's 🧠 panel and the console commands (`/memory`, `/remember`, `/forget`) change the same
+- By hand: the phone's ☰ panel and the console commands (`/memory`, `/remember`, `/forget`) change the same
   list. Every change — by hand or learned — updates the current conversation at once; learned facts also
   show up in the phone chat as *🧠 Remembered: …*.
 
@@ -150,7 +150,8 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
                      plays 24 kHz PCM   ◄── audio ──   (sent as it's generated)
 ```
 
-- The page and the audio share one encrypted WebSocket connection (`/ws`).
+- The page and the audio share one encrypted WebSocket connection (`/ws`). With `WEB_PASSWORD` set, the server
+  refuses that connection until the phone has logged in once (a signed cookie remembers it).
 - The server also sends small text messages: what you said, the AI's words as they arrive, and "stop" when you interrupt — so the phone drops any audio it has buffered.
 - Kokoro generates audio faster than real time, so the phone receives the reply ahead of playback and plays it back to back without gaps.
 

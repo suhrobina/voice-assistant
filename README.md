@@ -47,8 +47,19 @@ Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.
 - The browser's echo cancellation lets you interrupt even on the phone speaker.
 - One phone at a time; a new connection replaces the old one.
-- **From outside your home** (mobile data): install [Tailscale](https://tailscale.com) on the server and phone, then open `https://<server's Tailscale IP>:8443`. Don't open port 8443 on your router — the page has no password.
+- **From outside your home** (mobile data): install [Tailscale](https://tailscale.com) on the server and phone, then open `https://<server's Tailscale IP>:8443`. Don't open port 8443 on your router.
 - Settings: `PORT=9000 ./run.sh --web`; all the usual ones (`VOICE`, `LLM_MODEL`…) work too.
+
+### Password
+Add it to `local.env` (plain text, no quotes), then restart (`./run.sh --web`, or
+`sudo systemctl restart voice-assistant` with auto-start):
+```
+WEB_PASSWORD=your secret phrase
+```
+- The page shows a lock screen; after the right password the phone is remembered for a year
+  (also across restarts). Without a password set, the page stays open and the server prints a warning.
+- **Log out:** ☰ panel → *Log out of this phone* (with `MEMORY=0` the ☰ button stays, offering only that). **Changing the password** logs out every phone.
+- 5 wrong tries → that device waits 30 s. The password travels over HTTPS (encrypted).
 
 ### Auto-start at boot (phone mode always on)
 ```bash
@@ -67,7 +78,7 @@ It runs `./run.sh --web` as a system service under your user (same models, memor
 - Only one copy fits on the GPU: while the service runs, `./run.sh` refuses to start and tells you to
   stop the service first. It starts again at the next boot (or `sudo systemctl start voice-assistant`).
 - Models stay loaded in GPU memory all the time — stop the service before games or other GPU work.
-- The page has no password: anyone on your Wi-Fi who knows the address can use it.
+- Set a password (below), or anyone on your Wi-Fi who knows the address can use it.
 - A fixed IP for the PC (set in the router) keeps the phone's bookmark working.
 
 ## Two GPUs
@@ -101,7 +112,7 @@ knows it next time — in both normal and phone mode.
 
 - **Forget something:** just say it — "Forget about my dog".
 - **See or edit what it knows:**
-  - Phone: the **🧠 button** under the text field opens the list — tap a fact to edit it, ✕ deletes it, the field adds one,
+  - Phone: the **☰ button** (three lines) under the text field opens the list — tap a fact to edit it, ✕ deletes it, the field adds one,
     "Forget everything" clears it. When it learns something, a grey *🧠 Remembered: …* line appears in the chat.
   - Console: `/memory` lists the facts, `/remember Has a cat named Luna` adds one, `/forget 3` deletes
     fact 3, `/forget all` clears everything.

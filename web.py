@@ -12,16 +12,21 @@ is created on first start (accept the warning once in the phone's browser).
 Start with:  ./run.sh --web
 """
 import asyncio
+import hashlib
+import hmac
 import json
 import os
 import queue
+import secrets
 import socket
 import ssl
 import subprocess
 import threading
 import time
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from pathlib import Path
+from urllib.parse import unquote
 
 from RealtimeTTS import TextToAudioStream
 from websockets.asyncio.server import serve
@@ -42,6 +47,7 @@ PORT = int(os.getenv("PORT", "8443"))
 HTTPS = os.getenv("HTTPS", "1") == "1"         # 0 = plain HTTP (e.g. behind `tailscale serve`)
 SSL_CERT = os.getenv("SSL_CERT", "certs/cert.pem")  # created automatically if missing
 SSL_KEY = os.getenv("SSL_KEY", "certs/key.pem")
+PASSWORD = os.getenv("WEB_PASSWORD", "")       # page password (set it in local.env); "" = anyone on the Wi-Fi
 # ----------------------------------------
 
 HERE = Path(__file__).parent
@@ -159,7 +165,7 @@ async def handler(ws):
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n📱  Phone connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
-          "memory": memory is not None, "profile": assistant.profile["name"],
+          "memory": memory is not None, "password": bool(PASSWORD), "profile": assistant.profile["name"],
           "profiles": [{"name": n, "label": load_profile(n)["label"]} for n in list_profiles()]})
     sender = asyncio.create_task(pump(ws, queue))
     try:
@@ -201,11 +207,72 @@ async def handler(ws):
             print("\n📱  Phone disconnected", flush=True)
 
 
-def http(connection, request):
-    """Serve the web page; let /ws through to the WebSocket handler."""
+# ---- password: the page asks once, then a signed cookie remembers the phone for a year ----
+COOKIE = "va_session"
+COOKIE_AGE = 365 * 24 * 3600
+MAX_TRIES, LOCK_SECONDS = 5, 30   # wrong passwords per device before it has to wait
+_failed = {}                      # ip -> (wrong tries, locked until)
+
+
+def session_token():
+    """The cookie value: HMAC of the password with a key kept in certs/session.key.
+    Survives restarts; changing WEB_PASSWORD logs out every phone."""
+    key_file = HERE / "certs" / "session.key"
+    if not key_file.exists():
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_bytes(secrets.token_bytes(32))
+        key_file.chmod(0o600)
+    return hmac.new(key_file.read_bytes(), PASSWORD.encode(), hashlib.sha256).hexdigest()
+
+
+TOKEN = session_token() if PASSWORD else ""
+
+
+def logged_in(request):
+    if not PASSWORD:
+        return True
+    cookie = SimpleCookie(request.headers.get("Cookie", "")).get(COOKIE)
+    return bool(cookie) and hmac.compare_digest(cookie.value, TOKEN)
+
+
+def cookie_response(connection, value, max_age):
+    response = connection.respond(HTTPStatus.OK, "OK\n")
+    response.headers["Set-Cookie"] = (f"{COOKIE}={value}; Max-Age={max_age}; Path=/; "
+                                      "Secure; HttpOnly; SameSite=Strict")
+    return response
+
+
+async def login(connection, request):
+    """GET /login with the password in an X-Password header (websockets only speaks GET)."""
+    ip = connection.remote_address[0]
+    tries, locked_until = _failed.get(ip, (0, 0))
+    if time.time() < locked_until:
+        return connection.respond(HTTPStatus.TOO_MANY_REQUESTS, f"{int(locked_until - time.time()) + 1}\n")
+    given = unquote(request.headers.get("X-Password", ""))
+    if PASSWORD and hmac.compare_digest(given.encode(), PASSWORD.encode()):
+        _failed.pop(ip, None)
+        print(f"\n🔓  Phone logged in ({ip})", flush=True)
+        return cookie_response(connection, TOKEN, COOKIE_AGE)
+    await asyncio.sleep(1)  # slows down guessing
+    tries += 1
+    _failed[ip] = (0, time.time() + LOCK_SECONDS) if tries >= MAX_TRIES else (tries, 0)
+    print(f"\n🔒  Wrong password from {ip}", flush=True)
+    return connection.respond(HTTPStatus.UNAUTHORIZED, "Wrong password\n")
+
+
+async def http(connection, request):
+    """Serve the web page and the login endpoints; let /ws through (only when logged in)."""
     path = request.path.split("?")[0]
     if path == "/ws":
-        return None
+        return None if logged_in(request) else connection.respond(HTTPStatus.UNAUTHORIZED, "Log in first\n")
+    if path == "/auth":  # the page asks before connecting: 204 = go ahead, 401 = show the lock screen
+        if logged_in(request):
+            return connection.respond(HTTPStatus.NO_CONTENT, "")
+        return connection.respond(HTTPStatus.UNAUTHORIZED, "Log in first\n")
+    if path == "/login":
+        return await login(connection, request)
+    if path == "/logout":
+        return cookie_response(connection, "", 0)
     if path == "/":
         headers = Headers({"Content-Type": "text/html; charset=utf-8",
                            "Content-Length": str(len(INDEX_HTML)),
@@ -258,6 +325,9 @@ async def main():
     print(f"Loading brain ({LLM_MODEL})...", flush=True)
     warm_up_llm()
     print_memory_status()
+    print("🔒  Password on (phones log in once)" if PASSWORD else
+          "⚠️   No password: anyone on your Wi-Fi can use the page (set WEB_PASSWORD in local.env)",
+          flush=True)
     assistant.on_memory_change = memory_event
     threading.Thread(target=listen, args=(recorder, inbox), daemon=True).start()
     threading.Thread(target=conversation, daemon=True).start()

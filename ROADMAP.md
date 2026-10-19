@@ -15,8 +15,9 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Conversation log: `conversations/YYYY-MM-DD.md`, both modes, spoken/typed marked; `LOG=0` turns it off
 - [x] Phone page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; composer card with 🧠 memory and profile buttons under the text (Claude app style); 👂 wake word toggle next to the talk button
 - [x] Profiles: `profiles/*.md` (prompt + voice + settings), switch with `/profile` or the phone menu; shared memory, fresh conversation on switch; last choice remembered across restarts
-- [x] Memory on the phone and console: 🧠 panel (list, edit, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
+- [x] Memory on the phone and console: ☰ panel (list, edit, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
 - [x] Auto-start at boot: `sudo ./install-service.sh` installs phone mode as a systemd service (waits for Ollama, restarts on crash, runs as the user); `run.sh` refuses a second copy while it runs
+- [x] Password for the phone page: `WEB_PASSWORD` in `local.env`, lock screen, phone remembered for a year (signed cookie), log out in the ☰ panel, 5 wrong tries → 30 s wait
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 
 ## ⭐ Top priorities
@@ -30,7 +31,6 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - Note: `qwen2.5:7b` is much better at tools than `llama3.2:3b`.
 
 ## 🔧 Convenience
-- [ ] Password for the phone page (now anyone on the Wi-Fi can open it)
 - [ ] Response time display: print how long each step took
 
 ## 🎙️ Voice quality
