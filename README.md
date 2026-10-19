@@ -49,7 +49,8 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
 4. Next to it, the **microphone button** mutes only the mic while talking (replies keep playing), e.g. while
    you speak to someone else; tap again to unmute.
 5. **☰** (left) opens the menu: **New conversation** (fresh start with a clean chat, memory kept; console:
-   `/new`), **Memory**, **Save conversation log** switch (off = private), **Wake word** switch and
+   `/new`), **Memory**, **Use memory** switch (off = the AI ignores and learns nothing), **Save conversation
+   log** switch (off = private), **Wake word** switch and
    **Log out** (with a password). The pill next to it switches **profiles**.
 
 Notes:
@@ -127,7 +128,9 @@ knows it next time — in both console and web mode.
   - Console: `/memory` lists the facts, `/remember Has a cat named Luna` adds one, `/forget 3` deletes
     fact 3, `/forget all` clears everything.
   - Both take effect immediately. Or edit `memory/memory.md` by hand (one fact per line, newest on top; restart afterwards).
-- **Turn off:** `MEMORY=0 ./run.sh` (or `MEMORY=0 ./run.sh --web`). Then `memory/memory.md` is
+- **Pause it:** ☰ menu → **Use memory** off (console: `/memory off`, `/memory on`): the AI ignores your facts
+  and learns nothing new; `memory/memory.md` stays as it is. Remembered in `settings.json`.
+- **Turn off completely:** `MEMORY=0 ./run.sh` (or `MEMORY=0 ./run.sh --web`). Then `memory/memory.md` is
   neither read nor written.
 - **Start over:** delete `memory/memory.md`.
 - Questions and small talk are never saved. Small models occasionally save something odd —
@@ -190,8 +193,8 @@ and settings (☰ → **New conversation** or console `/new` starts over). The p
 
 ## Saved settings (`settings.json`)
 Choices you make while using it are saved automatically in `settings.json` (project folder, not in git)
-and come back after a restart: the **active profile**, **Save conversation log** on/off and **wake word**
-on/off — shared by every device and the console. It's plain JSON; delete it to go back to the defaults.
+and come back after a restart: the **active profile**, **Use memory**, **Save conversation log** and
+**wake word** on/off — shared by every device and the console. It's plain JSON; delete it to go back to the defaults.
 Settings you set up by hand (GPUs, model, password…) stay in `local.env`; `PROFILE=…` and `LOG=0` there
 (or on the command line) still win.
 

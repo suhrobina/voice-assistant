@@ -252,6 +252,9 @@
       <button id="memItem" class="item" type="button" role="menuitem">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
         <span>Memory</span><b class="chev" aria-hidden="true">›</b></button>
+      <button id="useMemItem" class="item" type="button" role="menuitemcheckbox" aria-checked="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+        <span>Use memory</span><i class="switch" aria-hidden="true"></i></button>
       <button id="logItem" class="item" type="button" role="menuitemcheckbox" aria-checked="true">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
         <span>Save conversation log</span><i class="switch" aria-hidden="true"></i></button>
@@ -442,7 +445,8 @@ function onMessage(e) {
     wakeBtn.hidden = !wakeName;
     $('wakeLabel').textContent = `Wake word "${wakeName}"`;
     memoryOn = !!m.memory;
-    $('memItem').hidden = !memoryOn;
+    $('memItem').hidden = $('useMemItem').hidden = !memoryOn;  // MEMORY=0 on the server
+    showMemoryUse(m.memory_use !== false);
     $('logoutItem').hidden = !m.password;
     showLogging(m.log !== false);
     wakeMode = !!m.wake_mode;
@@ -452,6 +456,10 @@ function onMessage(e) {
   else if (m.type === 'wake') onWake(m.state);
   else if (m.type === 'profile') add('note', `— ${m.label} —`);  // the conversation continues
   else if (m.type === 'wake_mode') { wakeMode = !!m.value; showWakeMode(); idleStatus(); }
+  else if (m.type === 'memory_use') {
+    showMemoryUse(m.value);
+    add('note', m.value ? '— memory on —' : '— memory off —');
+  }
   else if (m.type === 'log') {
     showLogging(m.value);
     add('note', m.value ? '— saving again —' : '— private: not saved —');
@@ -670,7 +678,7 @@ function setMicMuted(on) {
 }
 muteBtn.onclick = () => setMicMuted(!micMuted);
 
-// ---- ☰ menu: New conversation, Memory, log switch, wake word switch, Log out ----
+// ---- ☰ menu: New conversation, Memory, memory/log/wake word switches, Log out ----
 const menu = $('menu');
 function showMenu(open) {
   menu.classList.toggle('open', open);
@@ -682,6 +690,10 @@ document.addEventListener('click', e => {  // tap outside closes it
   if (menu.classList.contains('open') && !menu.contains(e.target) && !memBtn.contains(e.target)) showMenu(false);
 });
 $('memItem').onclick = () => { showMenu(false); showMemory(true); };
+
+// "Use memory" off: the AI ignores the facts and learns nothing (they stay in memory.md)
+function showMemoryUse(on) { $('useMemItem').setAttribute('aria-checked', String(on)); }
+$('useMemItem').onclick = () => wsSend({ type: 'memory_use', value: $('useMemItem').getAttribute('aria-checked') !== 'true' });
 
 // "Save conversation log" off = private mode: the server writes nothing to conversations/
 function showLogging(on) {

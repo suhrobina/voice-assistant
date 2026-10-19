@@ -221,7 +221,7 @@ async def handler(ws):
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n🌐  Device connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
-          "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on,
+          "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on, "memory_use": assistant.memory_on,
           "wake_mode": Client.wake_mode})
     send(profiles_event())
     sender = asyncio.create_task(pump(ws, queue))
@@ -265,6 +265,11 @@ async def handler(ws):
                 inbox.put(("preview", json.dumps(m.get("data") or {})))
             elif m.get("type") == "new_conversation":
                 inbox.put(("new", ""))
+            elif m.get("type") == "memory_use":  # the menu's "Use memory" switch
+                if memory:
+                    assistant.set_memory_use(m.get("value"))
+                    print("\n🧠  Memory on" if assistant.memory_on else "\n🧠  Memory off", flush=True)
+                send({"type": "memory_use", "value": bool(memory) and assistant.memory_on})
             elif m.get("type") == "log":  # the menu's "Save conversation log" switch
                 assistant.set_logging(m.get("value"))
                 print("\n📝  Conversation log on" if assistant.log_on else "\n🔒  Private: conversation log off",

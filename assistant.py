@@ -201,7 +201,11 @@ def installed_models():
 
 def profile_for_editor(name):
     """A profile as the editor shows it; model "" = the normal model (no "model:" line)."""
-    p = load_profile(name) if name else _read_profile(os.path.join(PROFILES_DIR, "_template.md"), "")
+    if name:
+        p = load_profile(name)
+    else:  # "+ New profile" starts from the template; without one, from the built-in defaults
+        template = os.path.join(PROFILES_DIR, "_template.md")
+        p = _read_profile(template, "") if os.path.isfile(template) else _profile_defaults("")
     return {**p, "model": "" if p["model"] == BASE_MODEL else p["model"]}
 
 
@@ -282,11 +286,11 @@ def load_settings():
     except (OSError, ValueError) as e:
         print(f"⚠️  {SETTINGS_FILE} unreadable ({e}), using defaults", flush=True)
     s = s if isinstance(s, dict) else {}
-    defaults = {"profile": "default", "save_log": True, "wake_word": False}
-    if any(k not in s for k in defaults):  # the file always lists every setting
-        s = {**defaults, **s}
-        write_settings(s)
-    return s
+    defaults = {"profile": "default", "memory": True, "save_log": True, "wake_word": False}  # file order
+    full = {k: s.get(k, v) for k, v in defaults.items()} | s  # every setting, in this order (+ unknown keys)
+    if list(full) != list(s):  # missing or out of order: rewrite the file
+        write_settings(full)
+    return full
 
 
 def write_settings(s):
@@ -324,12 +328,39 @@ LLM_MODEL = profile["model"]
 LLM_OPTIONS["temperature"] = profile["temperature"]
 
 
+# The menu's "Use memory" switch (console /memory on|off; saved): off = the AI neither sees nor learns
+# facts, memory.md stays untouched. MEMORY=0 = no memory at all.
+memory_on = settings.get("memory", True) is not False
+
+
+MEMORY_NOTE = "Memory was just switched"  # start of the note set_memory_use adds to the conversation
+
+
+def set_memory_use(on):
+    global memory_on
+    memory_on = bool(on)
+    save_setting("memory", memory_on)
+    history[0] = {"role": "system", "content": system_prompt()}  # takes effect mid-conversation
+    # drop the note of an earlier switch (after "off" the facts must not stay in the conversation)
+    history[1:] = [m for m in history[1:] if not m["content"].startswith(MEMORY_NOTE)]
+    if len(history) > 1:  # otherwise the model sticks to what it said before ("I don't know your name")
+        facts = "\n".join(f"- {f}" for f in memory.facts) or "(none yet)"
+        history.append({"role": "system", "content": (
+            MEMORY_NOTE + " on. What you know about the user now:\n" + facts +
+            "\nUse this from now on, even if you said earlier that you didn't know something."
+            if memory_on else
+            MEMORY_NOTE + " off: from now on don't use or mention remembered facts about the "
+            "user, unless they tell you again in this conversation.")})
+
+
 def system_prompt():
-    return profile["prompt"] + (memory.prompt() if memory else "")
+    return profile["prompt"] + (memory.prompt() if memory and memory_on else "")
 
 
 def print_memory_status():
-    if memory:
+    if memory and not memory_on:
+        print(f"🧠  Memory switched off ({len(memory.facts)} facts kept in {MEMORY_FILE})", flush=True)
+    elif memory:
         print(f"🧠  Memory on: {len(memory.facts)} facts in {MEMORY_FILE}", flush=True)
     else:
         print("🧠  Memory off", flush=True)
@@ -470,7 +501,7 @@ def llm_stream(user_text, on_token=None, source="voice"):
         print()
     history.append({"role": "assistant", "content": reply or "(interrupted)"})
     log_turn(source, user_text, reply, interrupted)
-    if memory and worth_checking(user_text):  # skip questions and small talk
+    if memory and memory_on and worth_checking(user_text):  # skip questions and small talk
         memory.update_async(user_text, OLLAMA_URL, LLM_MODEL, LLM_OPTIONS,
                             on_change=memory_changed)
 
@@ -699,6 +730,7 @@ COMMANDS_HELP = """Commands (type and press Enter):
   /new         start a new conversation (memory stays)
   /log off     private: stop saving the conversation log (/log on = save again)
   /memory      list what it remembers about you
+  /memory off  the AI ignores memory and learns nothing (/memory on = use it again)
   /remember X  add a fact, e.g. /remember Has a cat named Luna
   /forget N    forget fact number N (see /memory); /forget all = everything
   /help        show this list"""
@@ -779,6 +811,9 @@ def main():
             print("✨  New conversation (memory kept)", flush=True)
         elif words[0] in ("/memory", "/remember", "/forget") and not memory:
             print("Memory is off (started with MEMORY=0).", flush=True)
+        elif words[0] == "/memory" and len(words) > 1 and words[1] in ("on", "off"):
+            set_memory_use(words[1] == "on")
+            print("🧠  Memory on" if memory_on else "🧠  Memory off: not used, nothing learned", flush=True)
         elif words[0] == "/memory":
             if not memory.facts:
                 print("🧠  Nothing remembered yet.", flush=True)
