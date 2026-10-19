@@ -13,11 +13,11 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Two GPUs: `qwen3:8b` + Whisper (`int8_float16`) on the RTX 3070 Ti (Ollama pinned to it), Kokoro + desktop on the Quadro T1000 (BIOS primary display). Smarter model, no extra delay. Settings in `local.env`
 - [x] Fully offline after the first start: `HF_HUB_OFFLINE=1` in `run.sh` (verified with the internet blocked)
 - [x] Conversation log: `conversations/YYYY-MM-DD.md`, both modes, spoken/typed marked; `LOG=0` turns it off
-- [x] Web page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; composer card with 🧠 memory and profile buttons under the text (Claude app style); 👂 wake word toggle next to the talk button
-- [x] Profiles: `profiles/*.md` (prompt + voice + settings), switch with `/profile` or the web page's menu; shared memory, fresh conversation on switch; last choice remembered across restarts
-- [x] Memory on the web page and console: ☰ panel (list, edit, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
+- [x] Web page: one button in the text field (sound wave = talk / ➤ send / ■ stop) like the ChatGPT/Claude apps; composer card (Claude app style): ☰ menu (wake word switch, Memory, New conversation, Log out), profile pill, mic mute button
+- [x] Profiles: `profiles/*.md` (prompt + voice + settings), switch with `/profile` or the web page's menu; shared memory, the conversation continues on switch (New conversation starts over); last choice remembered across restarts
+- [x] Memory on the web page and console: Memory panel via the ☰ menu (list, edit, delete, add, forget everything), "🧠 Remembered: …" notes in the chat; `/memory`, `/remember`, `/forget N|all`
 - [x] Auto-start at boot: `sudo ./install-service.sh` installs web mode as a systemd service (waits for Ollama, restarts on crash, runs as the user); `run.sh` refuses a second copy while it runs
-- [x] Password for the web page: `WEB_PASSWORD` in `local.env`, lock screen, device remembered for a year (signed cookie), log out in the ☰ panel, 5 wrong tries → 30 s wait
+- [x] Password for the web page: `WEB_PASSWORD` in `local.env`, lock screen, device remembered for a year (signed cookie), log out in the ☰ menu, 5 wrong tries → 30 s wait
 - [x] Profiles panel on the web page: switch, edit (voice with ▶ Test, sliders, model, prompt), new from the template, rename, duplicate, delete; only `default.md` and `_template.md` in git
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 

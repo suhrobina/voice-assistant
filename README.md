@@ -22,7 +22,7 @@ You can also **type** a message in the console and press Enter — voice keeps w
 - When it stops listening (window over, or "Hey Jarvis" and then nothing), two soft falling notes play:
   say "Hey Jarvis" again. `SLEEP_SOUND=0` turns that sound off.
 - Too many false wake-ups → `WAKE_SENSITIVITY=0.7`; not reacting → `0.3` (default 0.5).
-- Web mode: the **👂 wake word button** next to the talk button picks the mode — off = regular talking
+- Web mode: the **Wake word** switch in the ☰ menu picks the mode — off = regular talking
   (default), on = say "Hey Jarvis" first (the page chimes and shows the state above the text box). The page remembers it.
 
 **Using speakers instead of headphones?** Start it with interruption turned off,
@@ -44,6 +44,10 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
      Without voice on, replies are silent text.
    - **■** (while talking): stop talking — back to silent text chat.
    Keep the page open.
+4. Next to it, the **microphone button** mutes only the mic while talking (replies keep playing), e.g. while
+   you speak to someone else; tap again to unmute.
+5. **☰** (left) opens the menu: **New conversation** (fresh start with a clean chat, memory kept; console:
+   `/new`), **Memory**, **Wake word** switch and **Log out** (with a password). The pill next to it switches **profiles**.
 
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.
@@ -60,7 +64,7 @@ WEB_PASSWORD=your secret phrase
 ```
 - The page shows a lock screen; after the right password the device is remembered for a year
   (also across restarts). Without a password set, the page stays open and the server prints a warning.
-- **Log out:** ☰ panel → *Log out of this device* (with `MEMORY=0` the ☰ button stays, offering only that). **Changing the password** logs out every device.
+- **Log out:** ☰ menu → *Log out of this device*. **Changing the password** logs out every device.
 - 5 wrong tries → that device waits 30 s. The password travels over HTTPS (encrypted).
 
 ### Auto-start at boot (web mode always on)
@@ -115,7 +119,7 @@ knows it next time — in both console and web mode.
 
 - **Forget something:** just say it — "Forget about my dog".
 - **See or edit what it knows:**
-  - Web page: the **☰ button** (three lines) under the text field opens the list — tap a fact to edit it, ✕ deletes it, the field adds one,
+  - Web page: ☰ menu → **Memory** opens the list — tap a fact to edit it, ✕ deletes it, the field adds one,
     "Forget everything" clears it. When it learns something, a grey *🧠 Remembered: …* line appears in the chat.
   - Console: `/memory` lists the facts, `/remember Has a cat named Luna` adds one, `/forget 3` deletes
     fact 3, `/forget all` clears everything.
@@ -141,7 +145,8 @@ About 0.5–0.9 s from when you stop talking to first sound. Roughly: silence de
 
 ## Profiles (personalities)
 Each file in `profiles/` is a personality with its own prompt, voice and settings. Memory is shared
-(every profile knows you); switching starts a fresh conversation. The project ships `default` and
+(every profile knows you); switching keeps the conversation going with the new personality, voice
+and settings (☰ → **New conversation** or console `/new` starts over). The project ships `default` and
 `_template.md`; your own profiles stay private (not in git), like your memory.
 
 **On the web page**, the profile button under the text field opens the **Profiles** panel:

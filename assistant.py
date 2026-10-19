@@ -371,6 +371,18 @@ def log_turn(source, user_text, reply, interrupted):
                     f"**{now:%H:%M} AI:** {reply.strip() or '…'}{note}\n")
 
 
+def log_event(text):
+    """A line like "*12:30 — switched to Chef*" in today's log, inside the current session."""
+    if not LOG:
+        return
+    now = datetime.now()
+    path = os.path.join(LOG_DIR, f"{now:%Y-%m-%d}.md")
+    with _log_lock:
+        if path in _log_sessions:  # no session yet: its header will name the profile anyway
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(f"\n*{now:%H:%M} — {text}*\n")
+
+
 def llm_stream(user_text, on_token=None, source="voice"):
     """Yield tokens from Ollama as they are generated."""
     history.append({"role": "user", "content": user_text})
@@ -549,15 +561,21 @@ def set_profile_voice(engine):
     set_voice(engine, profile["voice"], profile["speed"])
 
 
-def apply_profile(name, engine=None, fresh=True, recorder=None):
-    """Switch personality: settings, voice, and a fresh conversation (memory stays shared).
-    fresh=False (the active profile was edited): keep the conversation, just use the new settings."""
+def new_conversation():
+    """Start over (memory kept), like a profile switch without switching."""
+    history[:] = [{"role": "system", "content": system_prompt()}]
+    _log_sessions.clear()  # next log entry starts a new session header
+
+
+def apply_profile(name, engine=None, recorder=None):
+    """Switch personality (or apply an edited one): settings and voice change, the conversation and
+    memory stay. Only the instructions at the top of the conversation are replaced; /new starts over."""
     global profile, LLM_MODEL
     new = load_profile(name)
     if not new:
         return None
     check_profile(new)
-    old_model = LLM_MODEL
+    old_model, old_name = LLM_MODEL, profile["name"]
     profile, LLM_MODEL = new, new["model"]
     save_profile(name)  # start with it next time
     LLM_OPTIONS["temperature"] = new["temperature"]
@@ -566,11 +584,9 @@ def apply_profile(name, engine=None, fresh=True, recorder=None):
         set_profile_voice(engine)
     if recorder:  # read live by RealtimeSTT
         recorder.post_speech_silence_duration = new["silence"]
-    if fresh:
-        history[:] = [{"role": "system", "content": system_prompt()}]
-        _log_sessions.clear()  # next log entry starts a new session header
-    else:
-        history[0] = {"role": "system", "content": system_prompt()}
+    history[0] = {"role": "system", "content": system_prompt()}
+    if new["name"] != old_name:
+        log_event(f"switched to {new['label']} ({LLM_MODEL})")
     if LLM_MODEL != old_model:  # free the GPU for the new model, then load it
         try:
             requests.post(OLLAMA_URL.replace("/api/chat", "/api/generate"),
@@ -627,7 +643,8 @@ COMMANDS_HELP = """Commands (type and press Enter):
   /wake on     say the wake word before talking
   /wake off    regular talking: answers everything it hears
   /profiles    list the profiles (personalities)
-  /profile X   switch to profile X (fresh conversation, memory stays)
+  /profile X   switch to profile X (the conversation continues; /new starts over)
+  /new         start a new conversation (memory stays)
   /memory      list what it remembers about you
   /remember X  add a fact, e.g. /remember Has a cat named Luna
   /forget N    forget fact number N (see /memory); /forget all = everything
@@ -692,11 +709,15 @@ def main():
             if len(words) < 2:
                 print(f"Profile: {profile['label']}. Usage: /profile NAME (see /profiles)", flush=True)
             elif apply_profile(words[1], engine, recorder=recorder):
-                print(f"🎭  {profile['label']}: fresh conversation, memory kept", flush=True)
+                print(f"🎭  {profile['label']} (conversation continues; /new starts over)", flush=True)
                 tts.feed(f"{profile['label']}.")
                 tts.play_async(**PLAY_OPTIONS)
             else:
                 print(f"No profile '{words[1]}'. Type /profiles", flush=True)
+        elif words[0] == "/new":
+            interrupt(force=True)
+            new_conversation()
+            print("✨  New conversation (memory kept)", flush=True)
         elif words[0] in ("/memory", "/remember", "/forget") and not memory:
             print("Memory is off (started with MEMORY=0).", flush=True)
         elif words[0] == "/memory":

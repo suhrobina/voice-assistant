@@ -36,7 +36,7 @@ from websockets.http11 import Response
 from assistant import (BARGE_IN, FOLLOW_UP, PRINT_CHAT, SLEEP_SOUND, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
                        stop_llm, warm_up_llm)
-from assistant import hold_window, set_wake_mode as set_recorder_wake_mode
+from assistant import hold_window, new_conversation, set_wake_mode as set_recorder_wake_mode
 from assistant import (BASE_MODEL, PROFILE_RANGES, apply_profile, available_voices, delete_profile,
                        installed_models, list_profiles, model_can_think, profile_for_editor,
                        set_profile_voice, thinking,
@@ -171,17 +171,22 @@ def conversation():
         if source == "profile":  # the page's profile menu
             if apply_profile(text, voice, recorder=recorder):
                 p = assistant.profile
-                print(f"\n🎭  {p['label']}: fresh conversation, memory kept", flush=True)
+                print(f"\n🎭  {p['label']} (conversation continues)", flush=True)
                 send({"type": "profile", "name": p["name"], "label": p["label"]})
                 send(profiles_event())
             continue
         if source == "profile_reload":  # the active profile was edited: new settings, same conversation
-            if apply_profile(text, voice, fresh=False, recorder=recorder):
+            if apply_profile(text, voice, recorder=recorder):
                 print(f"\n🎭  {assistant.profile['label']}: updated", flush=True)
                 send(profiles_event())
             continue
         if source == "preview":
             preview(json.loads(text))
+            continue
+        if source == "new":  # the page's menu: New conversation
+            new_conversation()
+            print("\n✨  New conversation (memory kept)", flush=True)
+            send({"type": "new_conversation"})
             continue
         if PRINT_CHAT:
             print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
@@ -257,6 +262,8 @@ async def handler(ws):
                 send(profiles_event())
             elif m.get("type") == "profile_preview":
                 inbox.put(("preview", json.dumps(m.get("data") or {})))
+            elif m.get("type") == "new_conversation":
+                inbox.put(("new", ""))
             elif m.get("type") == "wake_mode":
                 set_wake_mode(m.get("value"))
             elif m.get("type") == "played":  # the browser finished speaking the reply

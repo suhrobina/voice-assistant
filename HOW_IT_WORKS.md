@@ -77,7 +77,7 @@ Because each step starts before the previous one finishes, you hear an answer ab
 
 ## Wake word ("Hey Jarvis")
 
-In normal mode, and in web mode when the page's **👂 wake word button** is on, the ears first wait
+In normal mode, and in web mode when the page's **Wake word** switch (☰ menu) is on, the ears first wait
 for the wake word, detected offline by
 **openWakeWord** (a tiny model, runs on the CPU):
 
@@ -96,7 +96,7 @@ for the wake word, detected offline by
 - Web mode: the browser plays audio after the server has finished generating it, so the page reports
   `played` when it's done speaking and the server opens the window then. The server also sends the
   wake state (`listening` / `window` / `sleep`) so the page can chime and show it.
-- Switch at runtime: console `/wake` command, web page **👂 button** next to the talk button (both toggle `recorder.use_wake_words`).
+- Switch at runtime: console `/wake` command, web page ☰ menu → **Wake word** switch (both toggle `recorder.use_wake_words`).
 - Going back to sleep (window over, or the wake word and then 5 s of silence) plays two soft falling notes —
   the opposite of the wake chime — except while a reply is still playing.
 - Settings: `WAKE_WORD` (`""` = off), `FOLLOW_UP`, `WAKE_SENSITIVITY`, `SLEEP_SOUND` (`0` = no falling tone).
@@ -139,7 +139,7 @@ Long-term (`memory.py`, on unless `MEMORY=0`):
 
 - It uses the same AI model and settings, so nothing extra is loaded into GPU memory.
 - Safety rule: a fact is removed only when you ask to forget it, or when a new fact replaces it.
-- By hand: the web page's ☰ panel and the console commands (`/memory`, `/remember`, `/forget`) change the same
+- By hand: the web page's Memory panel (☰ menu) and the console commands (`/memory`, `/remember`, `/forget`) change the same
   list. Every change — by hand or learned — updates the current conversation at once; learned facts also
   show up in the web page's chat as *🧠 Remembered: …*.
 
