@@ -141,10 +141,8 @@ knows it next time — in both console and web mode.
 - **Use headphones.** Otherwise the assistant hears itself and interrupts. Without headphones run: `BARGE_IN=0 ./run.sh`
 - **Faster turn-taking:** `SILENCE=0.3 ./run.sh` (it may cut you off mid-pause).
 - **Smarter answers:** `ollama pull qwen2.5:7b` then `LLM_MODEL=qwen2.5:7b ./run.sh` (fits in 8 GB, slightly slower).
-- **Other language:** `STT_LANGUAGE=ru ./run.sh` (or `STT_LANGUAGE=auto` to detect it per sentence;
-  needs a multilingual Whisper such as `STT_MODEL=large-v3-turbo`).
-  It still answers in **English**: Kokoro can't speak Russian (it would spell the letters), so a message in
-  another script (Cyrillic…) gets a hidden "(Reply in English.)" reminder; the chat and the log show what you said. Kokoro voices are mainly English; see Kokoro voice list for others.
+- **Other language:** `STT_LANGUAGE=ru ./run.sh` (or `STT_LANGUAGE=` for auto-detect; needs a multilingual
+  Whisper such as `STT_MODEL=large-v3-turbo`). Kokoro voices are mainly English; see Kokoro voice list for others.
 - **Other voice:** `VOICE=am_michael ./run.sh` (also af_bella, bf_emma, am_adam...), or a blend: `VOICE="0.6*af_heart + 0.4*af_bella" ./run.sh`
 - **Speaking speed:** `TTS_SPEED=0.92 ./run.sh` (calmer) or `1.1` (faster).
 - **Pause between sentences:** `SENTENCE_PAUSE=0.3 ./run.sh` (default 0.2 s; `0` = none).
