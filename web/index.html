@@ -119,7 +119,7 @@
     border: 1px solid var(--muted); border-radius: 8px; padding: 4px 8px; outline: 0;
   }
   #facts .empty { color: var(--muted); justify-content: center; text-align: center; border: 0; padding: 18px 0; }
-  #addFact { display: flex; gap: 6px; margin: 10px 14px 4px; padding: 4px 4px 4px 14px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); }
+  #addFact { display: flex; gap: 6px; margin: 4px 14px 8px; padding: 4px 4px 4px 14px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); }
   #factText { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--fg); font: inherit; }
   #clearMem { display: block; margin: 4px auto 0; font-size: 12.5px; }
   #clearMem:hover { color: var(--stop); }
@@ -181,13 +181,13 @@
 <section id="sheet" aria-label="Memory" aria-hidden="true">
   <div class="top"><h2>Memory <span id="memCount"></span></h2>
     <button id="memClose" class="plain" type="button" aria-label="Close">✕</button></div>
-  <p id="memOff">Memory is off (MEMORY=0 on the server).</p>
-  <ul id="facts"></ul>
   <form id="addFact">
     <input id="factText" placeholder="Add a fact, e.g. Has a cat named Luna" autocomplete="off" enterkeyhint="done">
     <button class="round" type="submit" aria-label="Add">
       <svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></button>
   </form>
+  <p id="memOff">Memory is off (MEMORY=0 on the server).</p>
+  <ul id="facts"></ul>
   <button id="clearMem" class="plain" type="button">Forget everything</button>
   <button id="logout" class="plain" type="button" hidden>Log out of this phone</button>
 </section>

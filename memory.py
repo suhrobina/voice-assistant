@@ -4,7 +4,7 @@ Long-term memory: short facts about the user, kept in a plain text file.
   - At start, the facts are added to the system prompt.
   - After each reply, the LLM checks (in the background) whether the user
     shared something worth remembering, or asked to forget something.
-  - The file is plain Markdown (memory.md): read, edit or delete it any time.
+  - The file is plain Markdown (memory.md), newest fact on top: read, edit or delete it any time.
 
 Turn off with MEMORY=0 (then the file is neither read nor written).
 """
@@ -57,14 +57,21 @@ def worth_checking(user_text):
     return bool(words & FIRST_PERSON)
 
 
+NEWEST_FIRST = "# Newest first."  # header marker; files without it are from before (oldest first)
+
+
 class Memory:
     def __init__(self, path):
         self.path = Path(path)
-        self.facts = []
+        self.facts = []  # newest first, like the file
         if self.path.exists():
-            for line in self.path.read_text(encoding="utf-8").splitlines():
+            text = self.path.read_text(encoding="utf-8")
+            for line in text.splitlines():
                 if line.startswith("- "):
                     self.facts.append(line[2:].strip())
+            if self.facts and NEWEST_FIRST not in text:  # old file: flip it once
+                self.facts.reverse()
+                self._save()
 
     def prompt(self):
         """Text appended to the system prompt."""
@@ -79,7 +86,8 @@ class Memory:
     def _save(self):
         self.path.write_text(
             "# What the assistant remembers about you\n"
-            "# Edit or delete lines freely; one fact per line starting with \"- \".\n\n"
+            "# Edit or delete lines freely; one fact per line starting with \"- \".\n"
+            f"{NEWEST_FIRST}\n\n"
             + "".join(f"- {f}\n" for f in self.facts),
             encoding="utf-8",
         )
@@ -95,7 +103,7 @@ class Memory:
                     removed.append(f)
         known = {_norm(f) for f in self.facts}
         added = [a.strip() for a in add if a.strip() and _norm(a) not in known]
-        self.facts += added
+        self.facts[:0] = added  # new facts go on top
         if added or removed:
             self._save()
         return added, removed

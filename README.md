@@ -116,7 +116,7 @@ knows it next time — in both normal and phone mode.
     "Forget everything" clears it. When it learns something, a grey *🧠 Remembered: …* line appears in the chat.
   - Console: `/memory` lists the facts, `/remember Has a cat named Luna` adds one, `/forget 3` deletes
     fact 3, `/forget all` clears everything.
-  - Both take effect immediately. Or edit `memory/memory.md` by hand (one fact per line; restart afterwards).
+  - Both take effect immediately. Or edit `memory/memory.md` by hand (one fact per line, newest on top; restart afterwards).
 - **Turn off:** `MEMORY=0 ./run.sh` (or `MEMORY=0 ./run.sh --web`). Then `memory/memory.md` is
   neither read nor written.
 - **Start over:** delete `memory/memory.md`.
