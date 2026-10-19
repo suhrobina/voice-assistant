@@ -39,6 +39,7 @@
     color: var(--muted); flex: 1; min-width: 0; font-size: 12.5px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .dotpad { visibility: hidden; }  /* keeps the width while the dots grow (Connecting. .. ...) */
 
   /* chat: your messages in a soft bubble, AI replies as plain text */
   #log { flex: 1; overflow-y: auto; padding: 12px 14px 8px; scrollbar-width: thin; }
@@ -234,8 +235,22 @@ let starting = false;     // microphone is being started
 let replyEnded = false;   // server sent all audio; tell it "played" once the phone is done
 let muted = true;         // replies are spoken only while talking (mic on)
 
+// Texts ending in "…" get animated dots: Connecting → Connecting. → Connecting.. → Connecting...
+const dotTimers = new Map();
+function setDotted(el, text) {
+  clearInterval(dotTimers.get(el));
+  if (!text.endsWith('…')) { el.textContent = text; return; }
+  const shown = document.createElement('span'), pad = document.createElement('span');
+  pad.className = 'dotpad';
+  el.replaceChildren(text.slice(0, -1), shown, pad);
+  let n = 0;
+  const tick = () => { shown.textContent = '.'.repeat(n); pad.textContent = '.'.repeat(3 - n); n = (n + 1) % 4; };
+  tick();
+  dotTimers.set(el, setInterval(tick, 300));  // ms per step; a full cycle = 4 steps
+}
+
 function setStatus(text, live = false) {
-  statusEl.textContent = text;
+  setDotted(statusEl, text);
   dot.classList.toggle('online', ws?.readyState === WebSocket.OPEN);
   dot.classList.toggle('live', live && ws?.readyState === WebSocket.OPEN);
 }
@@ -243,7 +258,7 @@ function setStatus(text, live = false) {
 function idleStatus() {
   if (ws?.readyState !== WebSocket.OPEN) return;
   if (mic && wakeName && wakeMode) setStatus(`💤 Say "${wakeName}"`, true);
-  else if (mic) setStatus('Listening', true);
+  else if (mic) setStatus('Listening...', true);  // "..." = static dots, "…" = animated
   else setStatus('Ready');
 }
 
@@ -338,8 +353,8 @@ function format(text) {
 // ---- wake word ("Hey Jarvis"): state comes from the server ----
 function onWake(state) {
   if (!mic || !wakeMode) return;
-  if (state === 'listening') { setStatus('👂 Listening…', true); chime(); }
-  else if (state === 'window') setStatus('Go ahead…', true);
+  if (state === 'listening') { setStatus('Listening...', true); chime(); }
+  else if (state === 'window') setStatus('Go ahead...', true);
   else {  // "sleep": the wake word is needed again (not while a reply is still playing)
     if (sleepSound && !sources.length) chime(SLEEP_NOTES, 0.15);
     idleStatus();
@@ -605,17 +620,17 @@ $('lockForm').onsubmit = async e => {
   e.preventDefault();
   const msg = $('lockMsg'), pw = $('pw').value;
   if (!pw) return;
-  msg.textContent = 'Checking…';
+  setDotted(msg, 'Checking…');
   let r;
   try {  // encoded: header values must be plain ASCII
     r = await fetch('/login', { headers: { 'X-Password': encodeURIComponent(pw) }, cache: 'no-store' });
-  } catch { msg.textContent = 'Server not reachable'; return; }
+  } catch { setDotted(msg, 'Server not reachable'); return; }
   if (r.ok) {
-    $('pw').value = ''; msg.textContent = '';
+    $('pw').value = ''; setDotted(msg, '');
     showLock(false);
     connect();
-  } else if (r.status === 429) msg.textContent = `Too many tries. Wait ${(await r.text()).trim()} s`;
-  else { msg.textContent = 'Wrong password'; $('pw').select(); }
+  } else if (r.status === 429) setDotted(msg, `Too many tries. Wait ${(await r.text()).trim()} s`);
+  else { setDotted(msg, 'Wrong password'); $('pw').select(); }
 };
 
 $('logout').onclick = async () => {
@@ -643,6 +658,7 @@ document.addEventListener('visibilitychange', () => {
 
 showWakeMode();
 updateAction();
+setStatus('Connecting…');  // animate from the start
 connect();
 </script>
 </body>
