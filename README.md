@@ -10,7 +10,9 @@ bash setup.sh      # once, ~10 min (downloads models)
 ./run.sh
 ```
 Wait for "Ready.", then say **"Hey Jarvis"** — a short chime means it's listening — and talk.
-For 8 seconds after each answer you can keep talking without the wake word. Say "Hey Jarvis" to interrupt.
+For 8 seconds after each answer you can keep talking without the wake word. To interrupt an answer, just
+talk over it (or say "Hey Jarvis", which stops it at once; the wake word itself isn't sent to the AI).
+With speakers instead of headphones, use `BARGE_IN=0` — otherwise it hears itself and stops.
 You can also **type** a message in the console and press Enter — voice keeps working at the same time.
 
 **Wake word settings:**

@@ -88,8 +88,11 @@ for the wake word, detected offline by
                                             (starts when the reply finishes playing)
 ```
 
-- While waiting, voice detection is off — the TV or other people can't start a turn or interrupt a reply.
-- Saying "Hey Jarvis" during a reply interrupts it (barge-in).
+- While waiting, voice detection is off — the TV or other people can't start a turn.
+- While a reply is playing, any speech interrupts it (no wake word needed — the phone's echo cancellation
+  squashes your voice while the assistant talks, so the wake word was often missed). "Hey Jarvis" also stops
+  it at once; it's removed from the start of what you said, so "Hey Jarvis" alone just stops the reply.
+  After a reply (finished or interrupted) the FOLLOW_UP window runs, then it sleeps. Off with `BARGE_IN=0`.
 - Phone mode: the phone plays audio after the server has finished generating it, so the page reports
   `played` when it's done speaking and the server opens the window then. The server also sends the
   wake state (`listening` / `window` / `sleep`) so the page can chime and show it.

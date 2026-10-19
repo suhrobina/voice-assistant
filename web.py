@@ -36,7 +36,7 @@ from websockets.http11 import Response
 from assistant import (BARGE_IN, FOLLOW_UP, SLEEP_SOUND, LLM_MODEL, PLAY_OPTIONS, make_voice,
                        WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
                        stop_llm, warm_up_llm)
-from assistant import set_wake_mode as set_recorder_wake_mode
+from assistant import hold_window, set_wake_mode as set_recorder_wake_mode
 from assistant import apply_profile, list_profiles, load_profile
 from assistant import memory, memory_add, memory_clear, memory_edit, memory_remove, speakable
 import assistant  # for the current profile (assistant.profile changes on switch)
@@ -65,6 +65,7 @@ class Client:
     loop = None
     muted = False  # set by the page: True = text-only replies (talking is off)
     wake_mode = False  # set by the page's switch: require the wake word
+    replying = False   # a spoken reply is playing on the phone (until "played" or an interrupt)
 
 
 inbox = queue.Queue()  # ("voice" | "typed", text) from the mic and the text box
@@ -88,6 +89,9 @@ def interrupt(force=False):
         tts.stop()
     # The phone may still be playing buffered audio even if the server is done
     send({"type": "stop"})
+    if Client.replying:  # wake word mode: you have FOLLOW_UP s to talk, then it sleeps
+        Client.replying = False
+        open_follow_up()
 
 
 def wake_state(state):
@@ -149,6 +153,8 @@ def conversation():
             text_reply.start()
         else:
             tts.feed(speakable(tokens))
+            Client.replying = True
+            hold_window(recorder)  # talk over the reply to interrupt it, even in wake word mode
             tts.play_async(**PLAY_OPTIONS, muted=True, on_audio_chunk=send)
 
 
@@ -186,6 +192,7 @@ async def handler(ws):
             elif m.get("type") == "wake_mode":
                 set_wake_mode(m.get("value"))
             elif m.get("type") == "played":  # the phone finished speaking the reply
+                Client.replying = False
                 open_follow_up()
             elif str(m.get("type", "")).startswith("memory") and memory:  # the page's memory panel
                 fact = str(m.get("fact", "")).strip()

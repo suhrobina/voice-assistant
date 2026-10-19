@@ -325,9 +325,10 @@ def chime(notes=((880, 0.12),), volume=0.25):
         pass
 
 
-def wake_word_options(wake_word, on_wake=None):
+def wake_word_options(wake_word, on_wake=None, on_detect=None):
     """Extra recorder settings for wake word mode (openWakeWord, offline).
-    on_wake runs once per wake-up; default plays the chime on this PC."""
+    on_wake runs once per wake-up; default plays the chime on this PC.
+    on_detect (the interrupt) also runs once per wake-up: "Hey Jarvis" stops a reply at once."""
     if not wake_word:
         return {}
     last = [0.0]
@@ -336,6 +337,8 @@ def wake_word_options(wake_word, on_wake=None):
         # fires for every audio chunk while the wake word is heard; react once
         if time.time() - last[0] > 4:
             print("\n👂  Listening...", flush=True)
+            if on_detect:
+                on_detect()
             threading.Thread(target=on_wake or chime, daemon=True).start()
         last[0] = time.time()
 
@@ -370,7 +373,7 @@ def make_recorder(interrupt, wake_word=WAKE_WORD, on_wake=None, **extra):
         early_transcription_on_silence=0.2,  # start transcribing before silence timer ends
         on_vad_start=interrupt,               # barge-in (fires on actual speech)
         on_recording_start=interrupt,
-        **wake_word_options(wake_word, on_wake),
+        **wake_word_options(wake_word, on_wake, on_detect=interrupt),
         **extra,
     )
 
@@ -431,10 +434,17 @@ def apply_profile(name, engine=None):
     return new
 
 
+# "Hey Jarvis, what time is it?" -> "what time is it?" (said during a reply, the wake word is transcribed too)
+WAKE_PHRASE = re.compile(r"^\W*" + r"\W+".join(WAKE_WORD.split("_")) + r"\b\W*", re.I) if WAKE_WORD else None
+
+
 def listen(recorder, inbox):
     """Put each spoken sentence into the inbox."""
     while True:
         text = recorder.text().strip()
+        if WAKE_PHRASE and recorder.use_wake_words:
+            text = WAKE_PHRASE.sub("", text).strip()  # only "Hey Jarvis" = just stop the reply
+            text = text[:1].upper() + text[1:]
         if text:
             inbox.put(("voice", text))
 
@@ -444,6 +454,16 @@ def read_keyboard(inbox):
     for line in sys.stdin:
         if line.strip():
             inbox.put(("typed", line.strip()))
+
+
+def hold_window(recorder):
+    """Wake word mode: while a reply plays, plain speech interrupts it (no wake word needed;
+    the phone's echo cancellation squashes your voice, so the wake word is often missed then).
+    The FOLLOW_UP window takes over when the reply ends or is interrupted. Not with BARGE_IN=0
+    (speakers: it would hear itself)."""
+    if recorder.use_wake_words and BARGE_IN:
+        recorder.wake_word_activation_delay = 24 * 3600
+        recorder.listen_start = time.time()
 
 
 def set_wake_mode(recorder, on):
@@ -476,6 +496,7 @@ def main():
         if (BARGE_IN or force) and tts.is_playing():
             stop_llm.set()
             tts.stop()
+            open_follow_up()  # wake word mode: you have FOLLOW_UP s to talk, then it sleeps
 
     print("Loading ears...", flush=True)
     recorder = make_recorder(interrupt)
@@ -589,6 +610,7 @@ def main():
                 print(f"\nYou: {text}")
             print("AI : ", end="", flush=True)
             tts.feed(speakable(llm_stream(text, source=source)))
+            hold_window(recorder)  # talk over the reply to interrupt it, even in wake word mode
             tts.play_async(**PLAY_OPTIONS)
     except KeyboardInterrupt:
         print("\nBye!")
