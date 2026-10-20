@@ -64,6 +64,7 @@ class Memory:
     def __init__(self, path, verbose=True):
         self.path = Path(path)
         self.verbose = verbose  # print remembered/forgotten facts (off for the auto-start service)
+        self.revision = 0  # bumped by changes by hand: a background extraction started before them is dropped
         self.facts = []  # newest first, like the file
         if self.path.exists():
             text = self.path.read_text(encoding="utf-8")
@@ -114,6 +115,7 @@ class Memory:
     def remember(self, fact):
         """Add one fact; returns it, or None if empty or already known."""
         with _lock:
+            self.revision += 1
             added, _ = self.apply([fact], [])
         return added[0] if added else None
 
@@ -122,6 +124,7 @@ class Memory:
         with _lock:
             if fact not in self.facts:
                 return False
+            self.revision += 1
             self.facts.remove(fact)
             self._save()
         return True
@@ -132,6 +135,7 @@ class Memory:
         with _lock:
             if old not in self.facts or not new:
                 return None
+            self.revision += 1
             i = self.facts.index(old)
             if any(_norm(f) == _norm(new) for j, f in enumerate(self.facts) if j != i):
                 self.facts.pop(i)  # now the same as another fact: keep just that one
@@ -142,12 +146,21 @@ class Memory:
 
     def forget_all(self):
         with _lock:
+            self.revision += 1
             removed, self.facts = self.facts, []
             self._save()
         return removed
 
-    def update(self, user_text, url, model, options, on_change=None):
-        """Ask the LLM what to remember from the user's message (blocking)."""
+    def invalidate(self):
+        """Drop the result of any extraction still running (memory switched off)."""
+        with _lock:
+            self.revision += 1
+
+    def update(self, user_text, url, model, options, on_change=None, revision=None):
+        """Ask the LLM what to remember from the user's message (blocking).
+        revision: memory's revision when the extraction was requested (update_async passes it)."""
+        if revision is None:
+            revision = self.revision
         current = "\n".join(f"- {f}" for f in self.facts) or "(none)"
         payload = {
             "model": model,
@@ -176,6 +189,8 @@ class Memory:
         if not add and not any(w in user_text.lower() for w in FORGET_WORDS):
             remove = []
         with _lock:
+            if self.revision != revision:  # changed by hand (or memory off) meanwhile: the answer is stale
+                return
             added, removed = self.apply(add, remove)
         for f in added if self.verbose else []:
             print(f"🧠  remembered: {f}", flush=True)
@@ -185,4 +200,6 @@ class Memory:
             on_change(added, removed)
 
     def update_async(self, *args, **kwargs):
+        # captured now, not when the thread runs: a change in between must count too
+        kwargs.setdefault("revision", self.revision)
         threading.Thread(target=self.update, args=args, kwargs=kwargs, daemon=True).start()

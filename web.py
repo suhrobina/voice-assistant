@@ -353,10 +353,12 @@ async def login(connection, request):
         _failed.pop(ip, None)
         print(f"\n🔓  Device logged in ({ip})", flush=True)
         return cookie_response(connection, TOKEN, COOKIE_AGE)
-    await asyncio.sleep(1)  # slows down guessing
+    # count it before the delay: from reading _failed to here nothing awaits, so parallel requests
+    # can't overwrite each other's count (they did, and the lockout never triggered)
     tries += 1
     _failed[ip] = (0, time.time() + LOCK_SECONDS) if tries >= MAX_TRIES else (tries, 0)
     print(f"\n🔒  Wrong password from {ip}", flush=True)
+    await asyncio.sleep(1)  # slows down guessing
     return connection.respond(HTTPStatus.UNAUTHORIZED, "Wrong password\n")
 
 

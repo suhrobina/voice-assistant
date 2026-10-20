@@ -349,21 +349,27 @@ memory_on = settings.get("memory", True) is not False
 MEMORY_NOTE = "Memory was just switched"  # start of the note set_memory_use adds to the conversation
 
 
+def memory_note(on):
+    """The note added to the conversation when memory is switched mid-conversation."""
+    if on:
+        facts = "\n".join(f"- {f}" for f in memory.facts) or "(none yet)"
+        return (MEMORY_NOTE + " on. What you know about the user now:\n" + facts +
+                "\nUse this from now on, even if you said earlier that you didn't know something.")
+    return (MEMORY_NOTE + " off: from now on don't use or mention remembered facts about the "
+            "user, unless they tell you again in this conversation.")
+
+
 def set_memory_use(on):
     global memory_on
     memory_on = bool(on)
     save_setting("memory", memory_on)
+    if not memory_on:
+        memory.invalidate()  # a background extraction still running must not write any more
     history[0] = {"role": "system", "content": system_prompt()}  # takes effect mid-conversation
     # drop the note of an earlier switch (after "off" the facts must not stay in the conversation)
     history[1:] = [m for m in history[1:] if not m["content"].startswith(MEMORY_NOTE)]
     if len(history) > 1:  # otherwise the model sticks to what it said before ("I don't know your name")
-        facts = "\n".join(f"- {f}" for f in memory.facts) or "(none yet)"
-        history.append({"role": "system", "content": (
-            MEMORY_NOTE + " on. What you know about the user now:\n" + facts +
-            "\nUse this from now on, even if you said earlier that you didn't know something."
-            if memory_on else
-            MEMORY_NOTE + " off: from now on don't use or mention remembered facts about the "
-            "user, unless they tell you again in this conversation.")})
+        history.append({"role": "system", "content": memory_note(memory_on)})
 
 
 def system_prompt():
@@ -385,6 +391,9 @@ on_memory_change = None  # web.py: callback(added, removed, learned) to update t
 def memory_changed(added=(), removed=(), learned=True):
     """Let the current conversation see the change at once (learned = found by the AI, not by hand)."""
     history[0]["content"] = system_prompt()
+    for m in history[1:]:  # the "memory on" note lists the facts too: keep it current (deleted = gone)
+        if m["role"] == "system" and m["content"].startswith(MEMORY_NOTE + " on"):
+            m["content"] = memory_note(True)
     if on_memory_change:
         on_memory_change(added, removed, learned)
 
