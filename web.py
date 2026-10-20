@@ -31,6 +31,7 @@ from urllib.parse import unquote
 from RealtimeTTS import TextToAudioStream
 from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
+from websockets.exceptions import ConnectionClosed
 from websockets.http11 import Response
 
 from assistant import (BARGE_IN, FOLLOW_UP, PRINT_CHAT, SLEEP_SOUND, LLM_MODEL, PLAY_OPTIONS, make_voice,
@@ -214,14 +215,17 @@ async def pump(ws, queue):
         await ws.send(await queue.get())
 
 
+REPLACED = 4000  # close code: another device took over; that page must not reconnect (or they'd ping-pong)
+
+
 async def handler(ws):
     if Client.ws is not None:
-        await Client.ws.close()
+        await Client.ws.close(REPLACED, "opened on another device")
     queue = asyncio.Queue()
     Client.ws, Client.queue, Client.loop = ws, queue, asyncio.get_running_loop()
     print("\n🌐  Device connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
-          "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on, "memory_use": assistant.memory_on,
+          "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on, "log_locked": not assistant.LOG, "memory_use": assistant.memory_on,
           "wake_mode": Client.wake_mode})
     send(profiles_event())
     sender = asyncio.create_task(pump(ws, queue))
@@ -294,6 +298,8 @@ async def handler(ws):
                     memory_clear()
                 else:
                     memory_event()
+    except ConnectionClosed:  # e.g. replaced by another device (code 4000): not an error
+        pass
     finally:
         sender.cancel()
         if Client.ws is ws:

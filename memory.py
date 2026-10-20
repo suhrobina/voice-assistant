@@ -85,6 +85,7 @@ class Memory:
         return text
 
     def _save(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)  # memory/ is not in git: missing on a fresh install
         self.path.write_text(
             "# What the assistant remembers about you\n"
             "# Edit or delete lines freely; one fact per line starting with \"- \".\n"

@@ -100,6 +100,7 @@
   }
   #menu .item:hover { background: var(--card); }
   #menu .item[hidden] { display: none; }
+  #menu .item:disabled { opacity: .45; cursor: default; }
   #menu .item svg { width: 19px; height: 19px; flex: none; fill: var(--muted); }
   #menu .item span { flex: 1; }
   #menu .item small { color: var(--muted); font-size: 12px; }
@@ -370,6 +371,7 @@ let sleepSound = true;    // server's SLEEP_SOUND: falling tone when it stops li
 let starting = false;     // microphone is being started
 let replyEnded = false;   // server sent all audio; tell it "played" once this page is done
 let muted = true;         // replies are spoken only while talking (mic on)
+let replaced = false;     // another device took over; tapping the status line takes it back
 let micMuted = false;     // mute button: the mic sends silence, replies keep playing
 let thinkingNow = false;  // "think: on" profile: status shows Thinking… until the first word
 let previewing = false;   // "▶ Test" voice sample from the profile editor: played even while muted
@@ -429,9 +431,15 @@ function openSocket() {
     idleStatus();
   };
   ws.onmessage = onMessage;
-  ws.onclose = () => {
-    setStatus('Reconnecting…');
+  ws.onclose = e => {
     stopPlayback();
+    if (e.code === 4000) {  // another device (or tab) took over: wait for a tap instead of taking it back
+      if (mic) stopMic();
+      replaced = true;
+      setStatus('In use on another device. Tap here to use it here');
+      return;
+    }
+    setStatus('Reconnecting…');
     setTimeout(connect, 2000);
   };
 }
@@ -449,6 +457,7 @@ function onMessage(e) {
     showMemoryUse(m.memory_use !== false);
     $('logoutItem').hidden = !m.password;
     showLogging(m.log !== false);
+    $('logItem').disabled = !!m.log_locked;  // LOG=0 on the server: always off
     wakeMode = !!m.wake_mode;
     showWakeMode();
     idleStatus();
@@ -690,6 +699,12 @@ document.addEventListener('click', e => {  // tap outside closes it
   if (menu.classList.contains('open') && !menu.contains(e.target) && !memBtn.contains(e.target)) showMenu(false);
 });
 $('memItem').onclick = () => { showMenu(false); showMemory(true); };
+$('bar').onclick = () => {
+  if (!replaced) return;
+  replaced = false;
+  setStatus('Connecting…');
+  connect();
+};
 
 // "Use memory" off: the AI ignores the facts and learns nothing (they stay in memory.md)
 function showMemoryUse(on) { $('useMemItem').setAttribute('aria-checked', String(on)); }

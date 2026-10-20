@@ -214,11 +214,23 @@ NO_MODEL_LINE = "# model: (not set = LLM_MODEL from local.env)"
 PROFILE_RANGES = {"speed": (0.5, 2.0), "pause": (0.0, 1.0), "temperature": (0.0, 1.5), "silence": (0.3, 3.0)}
 
 
+def profile_path(name):
+    """profiles/<name>.md, or None for a name that could point anywhere else ("../x") or isn't a profile."""
+    if not re.fullmatch(r"[\w-]+", name or "") or name.startswith("_"):
+        return None
+    path = os.path.realpath(os.path.join(PROFILES_DIR, f"{name}.md"))
+    return path if os.path.dirname(path) == os.path.realpath(PROFILES_DIR) else None
+
+
 def write_profile(data, old_name=None):
     """Save profiles/<name>.md from the editor. Returns (name, error message or None)."""
     name = str(data.get("name", "")).strip()
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", name) or name.startswith("_"):
         return name, "Name: letters, digits, - and _ only (up to 40, not starting with _)"
+    if old_name is not None:  # editing: it comes from the page, so check it as strictly as a new name
+        old_path = profile_path(old_name)
+        if not old_path or not os.path.isfile(old_path):
+            return name, f"No profile {old_name}"
     if old_name == "default" and name != "default":
         return name, "The default profile can't be renamed"
     path = os.path.join(PROFILES_DIR, f"{name}.md")
@@ -253,8 +265,8 @@ def write_profile(data, old_name=None):
     os.makedirs(PROFILES_DIR, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n\n" + prompt[:8000] + "\n")
-    if old_name and old_name != name:  # renamed
-        os.remove(os.path.join(PROFILES_DIR, f"{old_name}.md"))
+    if old_name and old_name != name:  # renamed (old_path was checked above)
+        os.remove(old_path)
     return name, None
 
 
@@ -262,8 +274,8 @@ def delete_profile(name):
     """Returns an error message or None. The default profile stays (it's the fallback)."""
     if name == "default":
         return "The default profile can't be deleted"
-    path = os.path.join(PROFILES_DIR, f"{name}.md")
-    if not re.fullmatch(r"[\w-]+", name) or not os.path.isfile(path):
+    path = profile_path(name)
+    if not path or not os.path.isfile(path):
         return f"No profile {name}"
     os.remove(path)
     return None
@@ -426,10 +438,10 @@ log_on = LOG and settings.get("save_log", True) is not False
 
 
 def set_logging(on):
-    """Private mode when off (remembered in settings.json)."""
+    """Private mode when off (remembered in settings.json). LOG=0 keeps it off whatever the switch says."""
     global log_on
-    log_on = bool(on)
-    save_setting("save_log", log_on)
+    log_on = LOG and bool(on)
+    save_setting("save_log", bool(on))
     _log_sessions.clear()  # when it's on again, the next entry starts a new session header
 
 
@@ -804,6 +816,8 @@ def main():
         elif words[0] == "/log":
             if len(words) > 1 and words[1] in ("on", "off"):
                 set_logging(words[1] == "on")
+            if not LOG:
+                print("The conversation log is turned off for good (LOG=0).", flush=True)
             print("📝  Conversation log on" if log_on else "🔒  Private: the conversation log is off",
                   flush=True)
         elif words[0] == "/new":

@@ -56,7 +56,8 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.
 - The browser's echo cancellation lets you interrupt even on a phone's or laptop's speaker.
-- One device at a time; a new connection replaces the old one.
+- One device at a time: opening it on another device (or tab) takes over, and the first one shows
+  *In use on another device* — tap that line to take it back.
 - **From outside your home** (mobile data): install [Tailscale](https://tailscale.com) on the server and your device, then open `https://<server's Tailscale IP>:8443`. Don't open port 8443 on your router.
 - Settings: `PORT=9000 ./run.sh --web`; all the usual ones (`VOICE`, `LLM_MODEL`…) work too.
 
