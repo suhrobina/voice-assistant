@@ -115,6 +115,8 @@ def open_follow_up():
         recorder.wake_word_activation_delay = FOLLOW_UP
         recorder.listen_start = time.time()
         wake_state("window")
+    elif Client.wake_mode:  # FOLLOW_UP=0: wake word needed again right away (hold_window paused it)
+        recorder.wake_word_activation_delay = 0
 
 
 def close_follow_up():
@@ -148,12 +150,14 @@ def preview(data):
         speed, pause = 1.0, 0.2
     label = " ".join(str(data.get("label", "")).split())[:40] or "your assistant"
     send({"type": "preview"})  # the page plays this even while talking is off
-    set_voice(voice, name, speed)
-    tts.feed(f"Hi! I'm {label}. This is how I sound.")
-    tts.play(**{**PLAY_OPTIONS, "sentence_silence_duration": pause},  # faster than real time, so short
-             muted=True, on_audio_chunk=send)
-    set_profile_voice(voice)  # back to the active profile's voice
-    send({"type": "preview_end"})
+    try:
+        set_voice(voice, name, speed)
+        tts.feed(f"Hi! I'm {label}. This is how I sound.")
+        tts.play(**{**PLAY_OPTIONS, "sentence_silence_duration": pause},  # faster than real time, so short
+                 muted=True, on_audio_chunk=send)
+    finally:
+        set_profile_voice(voice)  # back to the active profile's voice, also after an error
+        send({"type": "preview_end"})
 
 
 def drain(tokens):
@@ -169,44 +173,59 @@ def conversation():
         interrupt(force=True)
         if text_reply:
             text_reply.join()
-        if source == "profile":  # the page's profile menu
-            if apply_profile(text, voice, recorder=recorder):
-                p = assistant.profile
-                print(f"\n🎭  {p['label']} (conversation continues)", flush=True)
-                send({"type": "profile", "name": p["name"], "label": p["label"]})
-                send(profiles_event())
-            continue
-        if source == "profile_reload":  # the active profile was edited: new settings, same conversation
-            if apply_profile(text, voice, recorder=recorder):
-                print(f"\n🎭  {assistant.profile['label']}: updated", flush=True)
-                send(profiles_event())
-            continue
-        if source == "preview":
-            preview(json.loads(text))
-            continue
-        if source == "new":  # the page's menu: New conversation
-            new_conversation()
-            print("\n✨  New conversation (memory kept)", flush=True)
-            send({"type": "new_conversation"})
-            continue
-        if PRINT_CHAT:
-            print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
-        else:  # service: only that a turn happened, not what was said
-            print(f"💬  {source} message", flush=True)
-        send({"type": "user", "text": text})
-        send({"type": "reply"})
-        if thinking():  # "think: on": a few silent seconds before the first word
-            send({"type": "thinking"})
-        tokens = llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),
-                            source=source)
-        if Client.muted:
-            text_reply = threading.Thread(target=drain, args=(tokens,), daemon=True)
-            text_reply.start()
-        else:
-            tts.feed(speakable(tokens))
-            Client.replying = True
-            hold_window(recorder)  # talk over the reply to interrupt it, even in wake word mode
-            tts.play_async(**PLAY_OPTIONS, muted=True, on_audio_chunk=send)
+            text_reply = None
+        try:  # one failed request (e.g. Ollama timing out on a model switch) must not end this thread
+            text_reply = handle(source, text)
+        except Exception as e:
+            print(f"\n⚠️  {source} failed: {e}", flush=True)
+            send({"type": "error", "text": f"Couldn't do that ({source}): {e}"})
+            try:
+                send(profiles_event())  # e.g. a half-done profile switch: show what is active now
+            except Exception:
+                pass
+
+
+def handle(source, text):
+    """One inbox item. Returns the thread of a text-only reply, if it started one."""
+    if source == "profile":  # the page's profile menu
+        if apply_profile(text, voice, recorder=recorder):
+            p = assistant.profile
+            print(f"\n🎭  {p['label']} (conversation continues)", flush=True)
+            send({"type": "profile", "name": p["name"], "label": p["label"]})
+            send(profiles_event())
+        return None
+    if source == "profile_reload":  # the active profile was edited: new settings, same conversation
+        if apply_profile(text, voice, recorder=recorder):
+            print(f"\n🎭  {assistant.profile['label']}: updated", flush=True)
+            send(profiles_event())
+        return None
+    if source == "preview":
+        preview(json.loads(text))
+        return None
+    if source == "new":  # the page's menu: New conversation
+        new_conversation()
+        print("\n✨  New conversation (memory kept)", flush=True)
+        send({"type": "new_conversation"})
+        return None
+    if PRINT_CHAT:
+        print(f"\nYou{' (typed)' if source == 'typed' else ''}: {text}\nAI : ", end="", flush=True)
+    else:  # service: only that a turn happened, not what was said
+        print(f"💬  {source} message", flush=True)
+    send({"type": "user", "text": text})
+    send({"type": "reply"})
+    if thinking():  # "think: on": a few silent seconds before the first word
+        send({"type": "thinking"})
+    tokens = llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),
+                        source=source)
+    if Client.muted:
+        text_reply = threading.Thread(target=drain, args=(tokens,), daemon=True)
+        text_reply.start()
+        return text_reply
+    tts.feed(speakable(tokens))
+    Client.replying = True
+    hold_window(recorder)  # talk over the reply to interrupt it, even in wake word mode
+    tts.play_async(**PLAY_OPTIONS, muted=True, on_audio_chunk=send)
+    return None
 
 
 async def pump(ws, queue):
@@ -244,6 +263,8 @@ async def handler(ws):
                 Client.muted = bool(m.get("value"))
             elif m.get("type") == "profile":
                 inbox.put(("profile", str(m.get("name", ""))))
+            elif m.get("type") == "profiles":  # the Profiles panel opened: send a fresh list
+                send(profiles_event())
             elif m.get("type") == "profile_save":  # the editor: new, edited or renamed profile
                 old = str(m.get("old") or "") or None
                 name, error = write_profile(m.get("data") or {}, old)

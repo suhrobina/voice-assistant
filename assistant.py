@@ -120,19 +120,27 @@ def _profile_defaults(name):
 
 def _read_profile(path, name):
     p = _profile_defaults(name)
-    header, body = True, []
+    header, seen, body = True, False, []
     for line in open(path, encoding="utf-8").read().splitlines():
-        m = re.match(r"^(\w+):\s*(.+)$", line)
-        if header and m and m.group(1) in PROFILE_KEYS:
-            try:
-                p[m.group(1)] = PROFILE_KEYS[m.group(1)](m.group(2).strip())
-            except ValueError:  # e.g. "speed: fast", "think: maybe"
-                print(f"⚠️  profiles/{name}.md: '{line}' is not a valid value, ignored", flush=True)
-        elif header and (not line.strip() or line.startswith("#")):
-            continue
-        else:
+        if header:
+            m = re.match(r"^(\w+):\s*(.+)$", line)
+            if m and m.group(1) in PROFILE_KEYS:
+                try:
+                    p[m.group(1)] = PROFILE_KEYS[m.group(1)](m.group(2).strip())
+                except ValueError:  # e.g. "speed: fast", "think: maybe"
+                    print(f"⚠️  profiles/{name}.md: '{line}' is not a valid value, ignored", flush=True)
+                seen = True
+                continue
+            if line.startswith("#"):  # comments before/among the settings (the template's notes)
+                seen = True
+                continue
+            if not line.strip():
+                # the blank line after the settings: everything below is the prompt, word for word
+                # (prompt lines like "model: x" or "# Heading" used to be taken as settings/comments)
+                header = not seen
+                continue
             header = False
-            body.append(line)
+        body.append(line)
     p["prompt"] = "\n".join(body).strip() or p["prompt"]
     return p
 
@@ -782,6 +790,8 @@ def main():
         if recorder.use_wake_words and FOLLOW_UP > 0:
             recorder.wake_word_activation_delay = FOLLOW_UP
             recorder.listen_start = time.time()
+        elif recorder.use_wake_words:  # FOLLOW_UP=0: wake word needed again right away (hold_window paused it)
+            recorder.wake_word_activation_delay = 0
 
     def close_follow_up():
         # Back to waiting for the wake word: after the follow-up window, or "Hey Jarvis" and then silence
@@ -890,7 +900,10 @@ def main():
             except queue.Empty:
                 continue
             if source == "typed" and text.startswith("/"):
-                command(text)
+                try:  # e.g. /profile when Ollama times out loading the model
+                    command(text)
+                except Exception as e:
+                    print(f"⚠️  {text.split()[0]} failed: {e}", flush=True)
                 continue
             interrupt(force=source == "typed")
             if PRINT_CHAT:

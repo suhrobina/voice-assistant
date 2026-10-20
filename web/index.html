@@ -475,6 +475,7 @@ function onMessage(e) {
   }
   else if (m.type === 'new_conversation') { log.replaceChildren(); aiEl = null; aiText = ''; }  // clean chat
   else if (m.type === 'profiles') onProfiles(m);
+  else if (m.type === 'error') { add('note', `⚠️ ${m.text}`); $('pfSave').disabled = $('pfTest').disabled = false; }
   else if (m.type === 'profile_saved') { $('pfSave').disabled = false; showProfileList(); }
   else if (m.type === 'profile_error') { $('pfSave').disabled = false; $('pfTest').disabled = false; $('pfError').textContent = m.error; }
   else if (m.type === 'preview') { previewing = true; ignoreAudio = false; stopPlayback(); }
