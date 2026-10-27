@@ -38,8 +38,8 @@ from assistant import (BARGE_IN, FOLLOW_UP, PRINT_CHAT, SLEEP_SOUND, LLM_MODEL, 
                        WAKE_WORD, listen, llm_stream, make_recorder, print_memory_status,
                        stop_llm, warm_up_llm)
 from assistant import hold_window, new_conversation, set_wake_mode as set_recorder_wake_mode
-from assistant import (BASE_MODEL, PROFILE_RANGES, apply_profile, available_voices, delete_profile,
-                       installed_models, list_profiles, model_can_think, profile_for_editor,
+from assistant import (BASE_MODEL, CONTEXT_RANGE, NUM_CTX, PROFILE_RANGES, apply_profile, available_voices,
+                       delete_profile, installed_models, list_profiles, model_can_think, profile_for_editor,
                        set_profile_voice, thinking,
                        set_voice, write_profile)
 from assistant import memory, memory_add, memory_clear, memory_edit, memory_remove, speakable
@@ -136,6 +136,7 @@ def profiles_event():
             "list": sorted((profile_for_editor(n) for n in list_profiles()), key=lambda p: p["label"].lower()),
             "template": profile_for_editor(""), "voices": available_voices(),
             "models": (models := installed_models()), "default_model": BASE_MODEL, "ranges": PROFILE_RANGES,
+            "default_context": NUM_CTX, "context_range": CONTEXT_RANGE,
             "thinking_models": [m for m in models if model_can_think(m)]}
 
 

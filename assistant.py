@@ -72,9 +72,12 @@ SYSTEM_PROMPT = os.getenv(
     "so answer conversationally in short sentences. No markdown, lists, emojis "
     "or code blocks. Keep most answers to 1-3 sentences unless asked for more.",
 )
+# How many tokens of conversation the model sees at once (~0.75 words each); older messages drop out.
+# Bigger = longer memory of the chat, but more GPU memory (qwen3:8b on 8 GB: 8192 still fits). Profiles: "context:"
+NUM_CTX = int(os.getenv("NUM_CTX", "4096"))
 # temperature: creativity, 0.3 = focused/predictable, 1.0 = lively/random
-# num_ctx: how many tokens of conversation the model remembers
-LLM_OPTIONS = {"temperature": 0.7, "num_ctx": 4096}
+# num_ctx: sent with every request; a different value would make Ollama reload the model
+LLM_OPTIONS = {"temperature": 0.7, "num_ctx": NUM_CTX}
 # ----------------------------------------
 BASE_MODEL, BASE_TEMPERATURE = LLM_MODEL, LLM_OPTIONS["temperature"]  # what profiles fall back to
 
@@ -94,8 +97,19 @@ def on_off(value):
     raise ValueError(value)
 
 
+CONTEXT_RANGE = (2048, 32768)
+
+
+def context_size(value):
+    """"16384" -> 16384, only within CONTEXT_RANGE."""
+    n = int(value)
+    if not CONTEXT_RANGE[0] <= n <= CONTEXT_RANGE[1]:
+        raise ValueError(value)
+    return n
+
+
 PROFILE_KEYS = {"label": str, "voice": str, "speed": float, "pause": float,
-                "temperature": float, "model": str, "think": on_off, "silence": float}
+                "temperature": float, "model": str, "think": on_off, "silence": float, "context": context_size}
 
 
 def list_profiles():
@@ -115,7 +129,8 @@ def load_profile(name):
 def _profile_defaults(name):
     return {"name": name, "label": name.replace("_", " ").replace("-", " ").capitalize(),
             "prompt": SYSTEM_PROMPT, "voice": VOICE, "speed": TTS_SPEED, "pause": SENTENCE_PAUSE,
-            "temperature": BASE_TEMPERATURE, "model": BASE_MODEL, "think": False, "silence": SILENCE}
+            "temperature": BASE_TEMPERATURE, "model": BASE_MODEL, "think": False, "silence": SILENCE,
+            "context": NUM_CTX}
 
 
 def _read_profile(path, name):
@@ -127,7 +142,7 @@ def _read_profile(path, name):
             if m and m.group(1) in PROFILE_KEYS:
                 try:
                     p[m.group(1)] = PROFILE_KEYS[m.group(1)](m.group(2).strip())
-                except ValueError:  # e.g. "speed: fast", "think: maybe"
+                except ValueError:  # e.g. "speed: fast", "think: maybe", "context: 999999"
                     print(f"⚠️  profiles/{name}.md: '{line}' is not a valid value, ignored", flush=True)
                 seen = True
                 continue
@@ -209,16 +224,18 @@ def installed_models():
 
 
 def profile_for_editor(name):
-    """A profile as the editor shows it; model "" = the normal model (no "model:" line)."""
+    """A profile as the editor shows it; model/context "" = the normal one (no "model:"/"context:" line)."""
     if name:
         p = load_profile(name)
     else:  # "+ New profile" starts from the template; without one, from the built-in defaults
         template = os.path.join(PROFILES_DIR, "_template.md")
         p = _read_profile(template, "") if os.path.isfile(template) else _profile_defaults("")
-    return {**p, "model": "" if p["model"] == BASE_MODEL else p["model"]}
+    return {**p, "model": "" if p["model"] == BASE_MODEL else p["model"],
+            "context": "" if p["context"] == NUM_CTX else p["context"]}
 
 
 NO_MODEL_LINE = "# model: (not set = LLM_MODEL from local.env)"
+NO_CONTEXT_LINE = "# context: (not set = NUM_CTX from local.env)"
 PROFILE_RANGES = {"speed": (0.5, 2.0), "pause": (0.0, 1.0), "temperature": (0.0, 1.5), "silence": (0.3, 3.0)}
 
 
@@ -259,6 +276,12 @@ def write_profile(data, old_name=None):
     model = str(data.get("model", "")).strip()
     if model and model not in installed_models():
         return name, f"Model {model} is not installed"
+    context = str(data.get("context", "")).strip()
+    if context:
+        try:
+            context = context_size(context)
+        except ValueError:
+            return name, f"context must be a whole number between {CONTEXT_RANGE[0]} and {CONTEXT_RANGE[1]}"
     think = data.get("think") in (True, "on", "true", "1", 1)
     if think and not model_can_think(model or BASE_MODEL):
         return name, f"{model or BASE_MODEL} can't think first; choose a model that can (e.g. qwen3)"
@@ -269,7 +292,8 @@ def write_profile(data, old_name=None):
              f"pause: {values['pause']:g}", f"temperature: {values['temperature']:g}",
              f"silence: {values['silence']:g}", f"think: {'on' if think else 'off'}",
              # no model line = the normal model, so changing LLM_MODEL in local.env still works
-             f"model: {model}" if model else NO_MODEL_LINE]
+             f"model: {model}" if model else NO_MODEL_LINE,
+             f"context: {context}" if context else NO_CONTEXT_LINE]
     os.makedirs(PROFILES_DIR, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n\n" + prompt[:8000] + "\n")
@@ -347,6 +371,7 @@ PROFILE = PROFILE or saved_profile() or "default"
 profile = check_profile(load_profile(PROFILE) or load_profile("default"))
 LLM_MODEL = profile["model"]
 LLM_OPTIONS["temperature"] = profile["temperature"]
+LLM_OPTIONS["num_ctx"] = profile["context"]
 
 
 # The menu's "Use memory" switch (console /memory on|off; saved): off = the AI neither sees nor learns
@@ -686,10 +711,11 @@ def apply_profile(name, engine=None, recorder=None):
     if not new:
         return None
     check_profile(new)
-    old_model, old_name = LLM_MODEL, profile["name"]
+    old_model, old_name, old_context = LLM_MODEL, profile["name"], LLM_OPTIONS["num_ctx"]
     profile, LLM_MODEL = new, new["model"]
     save_profile(name)  # start with it next time
     LLM_OPTIONS["temperature"] = new["temperature"]
+    LLM_OPTIONS["num_ctx"] = new["context"]
     PLAY_OPTIONS["sentence_silence_duration"] = new["pause"]
     if engine:
         set_profile_voice(engine)
@@ -704,7 +730,9 @@ def apply_profile(name, engine=None, recorder=None):
                           json={"model": old_model, "keep_alive": 0}, timeout=30)
         except requests.RequestException:
             pass
-        print(f"Loading {LLM_MODEL}...", flush=True)
+    if LLM_MODEL != old_model or LLM_OPTIONS["num_ctx"] != old_context:
+        # a new context size makes Ollama reload the model too: do it now, not on the first question
+        print(f"Loading {LLM_MODEL} (context {LLM_OPTIONS['num_ctx']})...", flush=True)
         warm_up_llm()
     return new
 

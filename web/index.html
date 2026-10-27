@@ -317,6 +317,8 @@
     <label class="field"><span>Silence before it answers <output id="pfSilenceOut"></output></span>
       <input id="pfSilence" type="range" min="0.3" max="2" step="0.05"></label>
     <label class="field"><span>Model</span><select id="pfModel"></select></label>
+    <label class="field"><span>Context <small>(how much of the chat it sees; bigger uses more GPU memory)</small></span>
+      <select id="pfContext"></select></label>
     <label class="field check-row"><input id="pfThink" type="checkbox">
       <span>Think first <small id="pfThinkNote">(smarter on hard questions, a few seconds slower)</small></span></label>
     <label class="field"><span>Prompt (instructions; replies are spoken, so ask for short sentences)</span>
@@ -876,7 +878,8 @@ function showProfileList() {
 
 const f = {
   name: $('pfName'), label: $('pfLabel'), voice: $('pfVoice'), speed: $('pfSpeed'), pause: $('pfPause'),
-  temperature: $('pfTemp'), silence: $('pfSilence'), model: $('pfModel'), think: $('pfThink'), prompt: $('pfPrompt'),
+  temperature: $('pfTemp'), silence: $('pfSilence'), model: $('pfModel'), context: $('pfContext'), think: $('pfThink'),
+  prompt: $('pfPrompt'),
 };
 
 function slugify(text) { return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40); }
@@ -907,6 +910,10 @@ function fillEditor(p, old) {
   f.name.disabled = old === 'default';  // the fallback profile keeps its name
   setOptions(f.voice, profiles.voices.map(v => [v.name, `${v.name} (${v.desc})`]), p.voice);
   setOptions(f.model, [['', `Default (${profiles.default_model})`], ...profiles.models.map(m => [m, m])], p.model || '');
+  const [low, high] = profiles.context_range || [2048, 32768], sizes = [];
+  const tokens = n => n % 1024 ? `${n}` : `${n / 1024}k`;  // 8192 -> "8k", 6000 -> "6000"
+  for (let n = low; n <= high; n *= 2) sizes.push([String(n), `${tokens(n)} tokens (~${Math.round(n * 0.75 / 100) * 100} words)`]);
+  setOptions(f.context, [['', `Default (${tokens(profiles.default_context)})`], ...sizes], String(p.context || ''));
   f.speed.value = p.speed; f.pause.value = p.pause; f.temperature.value = p.temperature; f.silence.value = p.silence;
   f.think.checked = !!p.think;
   updateThink();

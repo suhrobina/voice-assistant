@@ -104,6 +104,7 @@ This PC: **RTX 3070 Ti** runs the AI model (`qwen3:8b`) + Whisper; **Quadro T100
   LLM_MODEL=qwen3:8b           # ~5.6 GB on the 3070 Ti (qwen2.5:7b: 4.8 GB, also installed)
   ```
   One-off override, e.g. `LLM_MODEL=llama3.2:3b ./run.sh`. Back to one GPU + llama: delete `local.env`.
+  `NUM_CTX=8192` here gives every profile a longer conversation memory (default 4096 tokens; a profile's `context:` wins).
 - **Desktop on the T1000:** monitor plugged into the T1000 *and* the BIOS primary display set to it.
   Otherwise the desktop still renders on the 3070 Ti (~0.3 GB, more with a browser video).
 - **Memory on the 3070 Ti:** ~6.7 GB of 8 GB used, ~1.1 GB free (with qwen2.5:7b: ~2.3 GB free).
@@ -160,7 +161,7 @@ and settings (☰ → **New conversation** or console `/new` starts over). The p
 **On the web page**, the profile button under the text field opens the **Profiles** panel:
 - **Tap a profile** to switch to it (✓ = the current one).
 - **✎** opens the editor: name, label, voice (with **▶ Test** to hear it with the chosen speed and pause, before saving),
-  speed, pause, temperature, silence, model, think first (only for models that can) and the prompt. **Save** writes `profiles/<name>.md`; saving the active profile applies it right away
+  speed, pause, temperature, silence, model, context, think first (only for models that can) and the prompt. **Save** writes `profiles/<name>.md`; saving the active profile applies it right away
   and keeps the conversation. Renaming changes the file name; **Duplicate** makes a copy, **Delete** asks first.
 - **+ New profile** starts from `profiles/_template.md`. The name is made from the label if you leave it empty.
 - Only installed voices and models can be chosen; `default` can be edited but not renamed or deleted.
@@ -190,6 +191,7 @@ and settings (☰ → **New conversation** or console `/new` starts over). The p
   | `silence` | seconds you can pause before it answers (longer = time to think mid-sentence) | 0.3 – 2.0 | `SILENCE` (0.45) |
   | `model` | AI model; a different one takes ~20–60 s to load on every switch | installed: `qwen3:8b`, `qwen2.5:7b`, `llama3.2:3b` (`ollama list`) | `LLM_MODEL` |
   | `think` | reason silently before answering: smarter on hard questions, a few seconds slower (the page shows *Thinking…*) | `on` / `off`; only models that can (qwen3 yes, qwen2.5/llama3.2 no) | off |
+  | `context` | how much of the conversation it sees, in tokens (~0.75 words each; older messages drop out). Bigger = longer chats, more GPU memory; a change reloads the model on switch | 2048 – 32768 (on 8 GB, `qwen3:8b` fits 8192) | `NUM_CTX` (4096) |
 
   A wrong value (not a number, a voice or model that isn't there) is skipped with a ⚠️ warning and the normal value is used.
 

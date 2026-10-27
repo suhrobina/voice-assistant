@@ -120,7 +120,8 @@ BARGE_IN=0 ./run.sh
 ## Memory
 
 Short-term: during a session the whole conversation is sent to the AI on every turn
-(up to `num_ctx` = 4096 tokens, roughly 15–20 minutes; older parts drop off).
+(up to `num_ctx` = 4096 tokens, roughly 15–20 minutes; older parts drop off). `NUM_CTX` in `local.env` or a
+profile's `context:` changes it; every request sends the same value, because a different one makes Ollama reload the model.
 
 Long-term (`memory.py`, on unless `MEMORY=0`):
 

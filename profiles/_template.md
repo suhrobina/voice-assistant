@@ -19,6 +19,9 @@
 #              a different model takes ~20-60 s to load on every switch     (LLM_MODEL in local.env)
 # think        reason silently before answering: smarter on hard questions,  on / off  (off)
 #              a few seconds slower. Only models that can (qwen3 yes; qwen2.5, llama3.2 no)
+# context      how much of the conversation it sees, in tokens       2048 - 32768   (NUM_CTX, 4096)
+#              (~0.75 words each; older messages drop out). Bigger = longer chats, but more
+#              GPU memory: on 8 GB, qwen3:8b fits 8192. A change reloads the model (~5 s)
 #
 # A wrong value (not a number, voice or model not found, think with a model that can't) is skipped
 # with a warning.
@@ -30,5 +33,6 @@ temperature: 0.7
 silence: 0.45
 think: off
 # model: (not set = LLM_MODEL from local.env)
+# context: (not set = NUM_CTX from local.env)
 
 You are a warm, helpful voice assistant. Your replies are spoken aloud, so answer conversationally in short sentences. No markdown, lists, emojis or code blocks. Keep most answers to 1-3 sentences unless asked for more.
