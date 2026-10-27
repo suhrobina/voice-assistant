@@ -21,6 +21,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Profiles panel on the web page: switch, edit (voice with ▶ Test, sliders, model, prompt), new from the template, rename, duplicate, delete; only `default.md` and `_template.md` in git
 - [x] Use memory switch (☰ menu, `/memory off`): the AI ignores and learns nothing; facts stay
 - [x] Private mode: ☰ menu → Save conversation log off (console `/log off`); nothing saved until it's on again
+- [x] Instructions (☰ menu, `/instructions`): your own rules for every profile, above its prompt; replies stay speakable; saved in `settings.json`
 - [x] Context length setting: `NUM_CTX` in `local.env` and `context:` per profile (editor field); a change reloads the model during the switch, not on the first question
 - [x] More natural Kokoro: 0.2 s breath between sentences (chosen by ear from samples); `TTS_SPEED`, `SENTENCE_PAUSE`, voice blends
 

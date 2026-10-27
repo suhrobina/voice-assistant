@@ -313,7 +313,7 @@ def delete_profile(name):
     return None
 
 
-# ---- settings.json: {"profile", "save_log", "wake_word"}, written on every change, read at start ----
+# ---- settings.json: {"profile", "instructions", "memory", "save_log", "wake_word"}, written on every change ----
 _settings_lock = threading.Lock()
 
 
@@ -331,7 +331,8 @@ def load_settings():
     except (OSError, ValueError) as e:
         print(f"⚠️  {SETTINGS_FILE} unreadable ({e}), using defaults", flush=True)
     s = s if isinstance(s, dict) else {}
-    defaults = {"profile": "default", "memory": True, "save_log": True, "wake_word": False}  # file order
+    defaults = {"profile": "default", "instructions": "", "memory": True, "save_log": True,
+                "wake_word": False}  # file order
     full = {k: s.get(k, v) for k, v in defaults.items()} | s  # every setting, in this order (+ unknown keys)
     if list(full) != list(s):  # missing or out of order: rewrite the file
         write_settings(full)
@@ -381,6 +382,51 @@ memory_on = settings.get("memory", True) is not False
 
 MEMORY_NOTE = "Memory was just switched"  # start of the note set_memory_use adds to the conversation
 
+# The menu's "Instructions" (console /instructions; saved): the user's own rules for every profile,
+# above the profile's prompt. Empty = nothing added to the prompt.
+instructions = str(settings.get("instructions") or "").strip()
+INSTRUCTIONS_MAX = 1500  # characters (~400 tokens): it's in every request
+INSTRUCTIONS_NOTE = "The user just changed their instructions"  # start of the note set_instructions adds
+# Above the user's instructions too: Kokoro reads every reply aloud, whatever they ask for. Saying why
+# matters: "no lists" alone lost to "always answer with a numbered list" (qwen3:8b, 3/3); this, 0/6
+SPOKEN_RULE = ("Format rule, above everything else including the user's instructions: every reply is read "
+               "aloud by a text-to-speech voice, which would read list numbers, bullets and symbols out loud. "
+               "So always answer in plain spoken sentences: no lists, numbering, markdown or emojis. If asked "
+               "for a list, say the items in a sentence, like \"first…, second…, and finally…\".")
+
+
+def instructions_prompt():
+    """The Instructions part of the system prompt (after the profile's prompt, so they win)."""
+    if not instructions:
+        return ""
+    return ("\n\nThe user's own instructions. They apply in every profile and take priority over the "
+            "instructions above when they conflict:\n" + instructions + "\n\n" + SPOKEN_RULE)
+
+
+def instructions_note():
+    """The note added to the conversation when the instructions change mid-conversation."""
+    if instructions:
+        return (INSTRUCTIONS_NOTE + ". From now on follow these; they take priority over the "
+                "profile's instructions:\n" + instructions + "\n" + SPOKEN_RULE)
+    return (INSTRUCTIONS_NOTE + ": they removed them. From now on don't follow their earlier "
+            "instructions, only the ones at the top of this conversation.")
+
+
+def set_instructions(text):
+    """Save new Instructions and use them at once, also mid-conversation. Returns what was saved."""
+    global instructions
+    text = str(text or "").strip()[:INSTRUCTIONS_MAX]
+    if text == instructions:
+        return instructions
+    instructions = text
+    save_setting("instructions", text)
+    history[0] = {"role": "system", "content": system_prompt()}
+    # like the memory switch: replace an earlier note, and tell the model, or it keeps its old habits
+    history[1:] = [m for m in history[1:] if not m["content"].startswith(INSTRUCTIONS_NOTE)]
+    if len(history) > 1:
+        history.append({"role": "system", "content": instructions_note()})
+    return instructions
+
 
 def memory_note(on):
     """The note added to the conversation when memory is switched mid-conversation."""
@@ -406,7 +452,7 @@ def set_memory_use(on):
 
 
 def system_prompt():
-    return profile["prompt"] + (memory.prompt() if memory and memory_on else "")
+    return profile["prompt"] + instructions_prompt() + (memory.prompt() if memory and memory_on else "")
 
 
 def print_memory_status():
@@ -786,6 +832,9 @@ COMMANDS_HELP = """Commands (type and press Enter):
   /profiles    list the profiles (personalities)
   /profile X   switch to profile X (the conversation continues; /new starts over)
   /new         start a new conversation (memory stays)
+  /instructions       show your instructions (for every profile, above its prompt)
+  /instructions X     set them, e.g. /instructions Call me Sam. Use metric units.
+  /instructions clear remove them
   /log off     private: stop saving the conversation log (/log on = save again)
   /memory      list what it remembers about you
   /memory off  the AI ignores memory and learns nothing (/memory on = use it again)
@@ -871,6 +920,17 @@ def main():
             interrupt(force=True)
             new_conversation()
             print("✨  New conversation (memory kept)", flush=True)
+        elif words[0] == "/instructions":
+            arg = text.split(maxsplit=1)[1].strip() if len(words) > 1 else ""
+            if arg:
+                set_instructions("" if arg.lower() == "clear" else arg)
+                print("📌  Instructions saved" if instructions else "📌  Instructions removed", flush=True)
+                if len(arg) > INSTRUCTIONS_MAX:
+                    print(f"    (cut to {INSTRUCTIONS_MAX} characters)", flush=True)
+            elif instructions:  # typed by the user in their own console: printing it is fine
+                print(f"📌  Instructions (for every profile):\n{instructions}", flush=True)
+            else:
+                print("📌  No instructions. Set them with /instructions TEXT", flush=True)
         elif words[0] in ("/memory", "/remember", "/forget") and not memory:
             print("Memory is off (started with MEMORY=0).", flush=True)
         elif words[0] == "/memory" and len(words) > 1 and words[1] in ("on", "off"):

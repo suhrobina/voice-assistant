@@ -246,7 +246,8 @@ async def handler(ws):
     print("\n🌐  Device connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
           "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on, "log_locked": not assistant.LOG, "memory_use": assistant.memory_on,
-          "wake_mode": Client.wake_mode})
+          "wake_mode": Client.wake_mode, "instructions": assistant.instructions,
+          "instructions_max": assistant.INSTRUCTIONS_MAX})
     send(profiles_event())
     sender = asyncio.create_task(pump(ws, queue))
     try:
@@ -291,6 +292,11 @@ async def handler(ws):
                 inbox.put(("preview", json.dumps(m.get("data") or {})))
             elif m.get("type") == "new_conversation":
                 inbox.put(("new", ""))
+            elif m.get("type") == "instructions":  # the Instructions panel's Save
+                assistant.set_instructions(m.get("text"))
+                print("\n📌  Instructions saved" if assistant.instructions else "\n📌  Instructions removed",
+                      flush=True)
+                send({"type": "instructions", "text": assistant.instructions, "saved": True})
             elif m.get("type") == "memory_use":  # the menu's "Use memory" switch
                 if memory:
                     assistant.set_memory_use(m.get("value"))

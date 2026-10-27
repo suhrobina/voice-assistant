@@ -198,6 +198,10 @@
     background: var(--chip); color: var(--fg); font: inherit; cursor: pointer;
   }
   #pfTest:disabled { opacity: .5; }
+  #insForm { display: flex; flex-direction: column; gap: 12px; padding: 0 14px; overflow-y: auto; }
+  #insForm .field > span { display: block; }
+  #insCount { float: right; margin-left: 8px; color: var(--muted); }
+  #insStatus { color: var(--muted); font-size: 12.5px; }
   #pfError { margin: 0; min-height: 1em; color: var(--stop); font-size: 12.5px; }
   .actions { position: sticky; bottom: 0; display: flex; align-items: center; gap: 4px; padding: 8px 0 4px; background: var(--bg); }
   .actions .grow { flex: 1; }
@@ -250,6 +254,9 @@
       <button id="newItem" class="item" type="button" role="menuitem">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
         <span>New conversation</span></button>
+      <button id="insItem" class="item" type="button" role="menuitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        <span>Instructions</span><b class="chev" aria-hidden="true">›</b></button>
       <button id="memItem" class="item" type="button" role="menuitem">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
         <span>Memory</span><b class="chev" aria-hidden="true">›</b></button>
@@ -288,6 +295,20 @@
   </form>
   <ul id="facts"></ul>
   <button id="clearMem" class="plain" type="button">Forget everything</button>
+</section>
+<section id="insSheet" class="sheet" aria-label="Instructions" aria-hidden="true">
+  <div class="top"><h2>Instructions</h2>
+    <button id="insClose" class="plain" type="button" aria-label="Close">✕</button></div>
+  <form id="insForm" novalidate>
+    <label class="field"><span>For every profile, and they come first when a profile's prompt says otherwise.
+      <output id="insCount"></output></span>
+      <textarea id="insText" rows="7" maxlength="1500" placeholder="e.g. Call me Sam. I live in Berlin. Use metric units. I'm a programmer, technical answers are fine."></textarea>
+      <small>Replies stay speakable whatever you write: a list is said as "first…, second…", no markdown. Empty = none.</small></label>
+    <div class="actions">
+      <span id="insStatus" class="grow" role="status"></span>
+      <button id="insSave" class="primary" type="submit">Save</button>
+    </div>
+  </form>
 </section>
 <section id="profSheet" class="sheet" aria-label="Profiles" aria-hidden="true">
   <div class="top">
@@ -462,6 +483,8 @@ function onMessage(e) {
     $('logItem').disabled = !!m.log_locked;  // LOG=0 on the server: always off
     wakeMode = !!m.wake_mode;
     showWakeMode();
+    $('insText').maxLength = m.instructions_max || 1500;
+    onInstructions({ text: m.instructions });
     idleStatus();
   }
   else if (m.type === 'wake') onWake(m.state);
@@ -477,6 +500,7 @@ function onMessage(e) {
   }
   else if (m.type === 'new_conversation') { log.replaceChildren(); aiEl = null; aiText = ''; }  // clean chat
   else if (m.type === 'profiles') onProfiles(m);
+  else if (m.type === 'instructions') onInstructions(m);
   else if (m.type === 'error') { add('note', `⚠️ ${m.text}`); $('pfSave').disabled = $('pfTest').disabled = false; }
   else if (m.type === 'profile_saved') { $('pfSave').disabled = false; showProfileList(); }
   else if (m.type === 'profile_error') { $('pfSave').disabled = false; $('pfTest').disabled = false; $('pfError').textContent = m.error; }
@@ -817,7 +841,7 @@ function showMemory(open) {
   if (memoryOn) wsSend({ type: 'memory' });
 }
 
-$('memClose').onclick = $('profClose').onclick = $('shade').onclick = closeSheets;
+$('memClose').onclick = $('profClose').onclick = $('insClose').onclick = $('shade').onclick = closeSheets;
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheets(); showMenu(false); } });
 $('addFact').onsubmit = e => {
   e.preventDefault();
@@ -827,6 +851,35 @@ $('addFact').onsubmit = e => {
 };
 $('clearMem').onclick = () => {
   if (confirm('Forget everything it knows about you?')) wsSend({ type: 'memory_clear' });
+};
+
+// ---- Instructions panel: the user's own rules for every profile (saved on the server) ----
+let instructions = '';  // what the server has; the text box may hold unsaved edits
+
+function showInstructionsCount() {
+  $('insCount').textContent = `${$('insText').value.length} / ${$('insText').maxLength}`;
+  $('insSave').disabled = $('insText').value.trim() === instructions;
+}
+
+function onInstructions(m) {
+  instructions = m.text || '';
+  if (m.saved || !$('insSheet').classList.contains('open')) $('insText').value = instructions;
+  $('insStatus').textContent = m.saved ? (instructions ? 'Saved' : 'Removed') : '';
+  showInstructionsCount();
+}
+
+$('insItem').onclick = () => {
+  showMenu(false);
+  $('insText').value = instructions;  // drop edits that were never saved
+  $('insStatus').textContent = '';
+  showInstructionsCount();
+  openSheet($('insSheet'));
+};
+$('insText').oninput = () => { $('insStatus').textContent = ''; showInstructionsCount(); };
+$('insForm').onsubmit = e => {
+  e.preventDefault();
+  $('insSave').disabled = true;
+  wsSend({ type: 'instructions', text: $('insText').value });
 };
 
 // ---- profiles panel: tap a row = switch, ✎ = edit, + New profile (from profiles/_template.md) ----

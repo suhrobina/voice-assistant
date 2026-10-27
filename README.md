@@ -49,7 +49,7 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
 4. Next to it, the **microphone button** mutes only the mic while talking (replies keep playing), e.g. while
    you speak to someone else; tap again to unmute.
 5. **☰** (left) opens the menu: **New conversation** (fresh start with a clean chat, memory kept; console:
-   `/new`), **Memory**, **Use memory** switch (off = the AI ignores and learns nothing), **Save conversation
+   `/new`), **Instructions** (your own rules for every profile, see below), **Memory**, **Use memory** switch (off = the AI ignores and learns nothing), **Save conversation
    log** switch (off = private), **Wake word** switch and
    **Log out** (with a password). The pill next to it switches **profiles**.
 
@@ -117,6 +117,19 @@ This PC: **RTX 3070 Ti** runs the AI model (`qwen3:8b`) + Whisper; **Quadro T100
   sudo systemctl daemon-reload && sudo systemctl restart ollama
   ```
 - Check with `nvidia-smi` while it runs: `llama-server` + `python` on the 3070 Ti, `python` + Xorg on the T1000.
+
+## Instructions (your rules for every profile)
+☰ menu → **Instructions**: a text box for things that should hold in every profile, e.g. *"Call me Sam.
+I live in Berlin. Use metric units. Technical answers are fine."* Empty by default (= nothing added).
+- **Priority:** they come after the profile's prompt and win where the two disagree (length, tone, how to
+  address you…). What you ask in the conversation still wins for that answer. One thing stays fixed: replies
+  are spoken, so a list is said as "first…, second…" instead of numbers or bullets.
+- **Takes effect at once**, also mid-conversation. Saved in `settings.json`, shared by every device, up to
+  1500 characters (they're sent with every question).
+- **Console:** `/instructions` shows them, `/instructions TEXT` sets them, `/instructions clear` removes them.
+- **Tested:** with `qwen3:8b` and the 30B model, your name, "answer in detail" over a short-answer profile, and
+  changes mid-conversation worked every time. A profile that names an exact length (Storyteller: "6 to 10
+  sentences") can still win over "answer briefly", especially with the 30B model.
 
 ## Memory (remembers you between sessions)
 On by default. When you share something about yourself ("My name is…", "I have a dog named Rex",
@@ -197,7 +210,7 @@ and settings (☰ → **New conversation** or console `/new` starts over). The p
 
 ## Saved settings (`settings.json`)
 Choices you make while using it are saved automatically in `settings.json` (project folder, not in git)
-and come back after a restart: the **active profile**, **Use memory**, **Save conversation log** and
+and come back after a restart: the **active profile**, **Instructions**, **Use memory**, **Save conversation log** and
 **wake word** on/off — shared by every device and the console. It's plain JSON; delete it to go back to the defaults.
 Settings you set up by hand (GPUs, model, password…) stay in `local.env`; `PROFILE=…` and `LOG=0` there
 (or on the command line) still win.

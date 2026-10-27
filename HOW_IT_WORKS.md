@@ -31,6 +31,8 @@ Decides what to answer.
 - **Ollama** is a separate program running in the background as a system service. It keeps the AI model (`llama3.2:3b` by default) loaded in GPU memory.
 - The script sends your text to it over a local web address (`http://localhost:11434`), together with the **conversation history**, so it remembers earlier turns.
 - The **system prompt** tells the model: be warm, use short sentences, no markdown — because the answer will be spoken, not read.
+  It's built from three parts: the profile's prompt, then your **Instructions** (☰ menu; they come later, so
+  they win where the two disagree, plus a fixed rule that replies stay speakable), then the memory facts.
 - **Streaming:** the model returns the answer word by word as it is generated, instead of waiting for the whole answer.
 
 ### 3. Voice — RealtimeTTS + Kokoro (text-to-speech)
