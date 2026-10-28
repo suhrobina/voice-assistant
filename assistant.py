@@ -565,26 +565,52 @@ def log_event(text):
                 f.write(f"\n*{now:%H:%M} — {text}*\n")
 
 
+def _read_ollama(payload, lines, cancelled):
+    """Ollama's reply, line by line, into a queue. In its own thread, so a stop doesn't have to wait
+    for the next line (a model loading from disk can take a minute before the first one)."""
+    try:
+        with requests.post(OLLAMA_URL, json=payload, stream=True, timeout=120) as r:
+            r.raise_for_status()
+            for line in r.iter_lines():
+                if cancelled.is_set():
+                    return  # leaving the with-block closes the connection, so Ollama stops generating
+                lines.put(line)
+    except Exception as e:  # handed to llm_stream, which raises it in the caller's thread
+        lines.put(e)
+    finally:
+        lines.put(None)
+
+
 def llm_stream(user_text, on_token=None, source="voice"):
     """Yield tokens from Ollama as they are generated."""
     history.append({"role": "user", "content": user_text})
     payload = {
         "model": LLM_MODEL,
-        "messages": history,
+        "messages": list(history),  # a copy: the reader thread serializes it while history may change
         "stream": True,
         "keep_alive": -1,  # keep model in VRAM -> no reload delay
         "think": thinking(),  # profile "think: on" = reason silently first (qwen3); otherwise answer at once
-        "options": LLM_OPTIONS,
+        "options": dict(LLM_OPTIONS),
     }
     reply = ""
     interrupted = False
+    error = None
     stop_llm.clear()
-    with requests.post(OLLAMA_URL, json=payload, stream=True, timeout=120) as r:
-        r.raise_for_status()
-        for line in r.iter_lines():
+    lines, cancelled = queue.Queue(), threading.Event()
+    threading.Thread(target=_read_ollama, args=(payload, lines, cancelled), daemon=True).start()
+    try:
+        while True:
+            try:
+                line = lines.get(timeout=0.1)  # wake up often to notice a stop
+            except queue.Empty:
+                line = b""
             if stop_llm.is_set():
                 interrupted = True
                 break
+            if line is None:
+                break
+            if isinstance(line, Exception):
+                raise line
             if not line:
                 continue
             chunk = json.loads(line)
@@ -598,10 +624,16 @@ def llm_stream(user_text, on_token=None, source="voice"):
                 yield token
             if chunk.get("done"):
                 break
+    except Exception as e:  # e.g. Ollama timed out: keep history in order, then let the caller report it
+        error, interrupted = e, True
+    finally:
+        cancelled.set()  # the reader thread drops the connection at its next line
     if PRINT_CHAT:
         print()
-    history.append({"role": "assistant", "content": reply or "(interrupted)"})
+    history.append({"role": "assistant", "content": reply or ("(error)" if error else "(interrupted)")})
     log_turn(source, user_text, reply, interrupted)
+    if error:
+        raise error
     if memory and memory_on and worth_checking(user_text):  # skip questions and small talk
         memory.update_async(user_text, OLLAMA_URL, LLM_MODEL, LLM_OPTIONS,
                             on_change=memory_changed)

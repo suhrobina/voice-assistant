@@ -161,6 +161,17 @@ def preview(data):
         send({"type": "preview_end"})
 
 
+def guarded(tokens):
+    """The reply's tokens; if generating fails (e.g. Ollama times out), the page gets an error instead of
+    waiting forever. Spoken replies run in RealtimeTTS's thread and muted ones in drain(), so the
+    conversation loop's try/except doesn't see these errors."""
+    try:
+        yield from tokens
+    except Exception as e:
+        print(f"\n⚠️  Reply failed: {e}", flush=True)
+        send({"type": "error", "text": f"Couldn't answer: {e}"})
+
+
 def drain(tokens):
     for _ in tokens:
         pass
@@ -216,8 +227,8 @@ def handle(source, text):
     send({"type": "reply"})
     if thinking():  # "think: on": a few silent seconds before the first word
         send({"type": "thinking"})
-    tokens = llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),
-                        source=source)
+    tokens = guarded(llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),
+                                source=source))
     if Client.muted:
         text_reply = threading.Thread(target=drain, args=(tokens,), daemon=True)
         text_reply.start()
@@ -248,7 +259,7 @@ async def handler(ws):
           "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on, "log_locked": not assistant.LOG, "memory_use": assistant.memory_on,
           "wake_mode": Client.wake_mode, "instructions": assistant.instructions,
           "instructions_max": assistant.INSTRUCTIONS_MAX})
-    send(profiles_event())
+    send(await asyncio.to_thread(profiles_event))  # asks Ollama: not on the event loop (audio keeps flowing)
     sender = asyncio.create_task(pump(ws, queue))
     try:
         async for msg in ws:
@@ -266,7 +277,7 @@ async def handler(ws):
             elif m.get("type") == "profile":
                 inbox.put(("profile", str(m.get("name", ""))))
             elif m.get("type") == "profiles":  # the Profiles panel opened: send a fresh list
-                send(profiles_event())
+                send(await asyncio.to_thread(profiles_event))
             elif m.get("type") == "profile_save":  # the editor: new, edited or renamed profile
                 old = str(m.get("old") or "") or None
                 name, error = write_profile(m.get("data") or {}, old)
@@ -277,7 +288,7 @@ async def handler(ws):
                 if assistant.profile["name"] in (old, name):  # the active one: apply, keep the conversation
                     inbox.put(("profile_reload", name))
                 send({"type": "profile_saved", "name": name})
-                send(profiles_event())
+                send(await asyncio.to_thread(profiles_event))
             elif m.get("type") == "profile_delete":
                 name = str(m.get("name", ""))
                 error = delete_profile(name)
@@ -287,7 +298,7 @@ async def handler(ws):
                 print(f"\n🎭  Profile {name} deleted", flush=True)
                 if name == assistant.profile["name"]:
                     inbox.put(("profile", "default"))
-                send(profiles_event())
+                send(await asyncio.to_thread(profiles_event))
             elif m.get("type") == "profile_preview":
                 inbox.put(("preview", json.dumps(m.get("data") or {})))
             elif m.get("type") == "new_conversation":
