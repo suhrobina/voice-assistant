@@ -803,17 +803,31 @@ def apply_profile(name, engine=None, recorder=None):
     history[0] = {"role": "system", "content": system_prompt()}
     if new["name"] != old_name:
         log_event(f"switched to {new['label']} ({LLM_MODEL})")
-    if LLM_MODEL != old_model:  # free the GPU for the new model, then load it
-        try:
-            requests.post(OLLAMA_URL.replace("/api/chat", "/api/generate"),
-                          json={"model": old_model, "keep_alive": 0}, timeout=30)
-        except requests.RequestException:
-            pass
-    if LLM_MODEL != old_model or LLM_OPTIONS["num_ctx"] != old_context:
-        # a new context size makes Ollama reload the model too: do it now, not on the first question
+    # a new context size makes Ollama reload the model too: do it now, not on the first question
+    if LLM_MODEL == old_model and LLM_OPTIONS["num_ctx"] == old_context:
+        return new
+    global loading
+    loading = new["label"]
+    if on_model_loading:  # web.py: the page shows "Loading <profile>…" until it's done
+        on_model_loading(loading)
+    try:
+        if LLM_MODEL != old_model:  # free the GPU for the new model, then load it
+            try:
+                requests.post(OLLAMA_URL.replace("/api/chat", "/api/generate"),
+                              json={"model": old_model, "keep_alive": 0}, timeout=30)
+            except requests.RequestException:
+                pass
         print(f"Loading {LLM_MODEL} (context {LLM_OPTIONS['num_ctx']})...", flush=True)
         warm_up_llm()
+    finally:  # also after a failed load: the page must not keep waiting
+        loading = None
+        if on_model_loading:
+            on_model_loading(None)
     return new
+
+
+loading = None           # label of the profile whose model is loading right now (for a page that connects meanwhile)
+on_model_loading = None  # web.py: callback(label, or None when done)
 
 
 # "Hey Jarvis, what time is it?" -> "what time is it?" (said during a reply, the wake word is transcribed too)

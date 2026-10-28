@@ -61,6 +61,9 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
    supports it: phones, tablets, Windows/Mac, not Linux desktop or desktop Firefox).
 7. Scrolled up to read? New text no longer pulls you down; a round **↓** button appears above the text box and
    brings you back to the latest message.
+8. Switching to a profile with another model (or context size) shows **Loading Smart (12 s)…** in the status line
+   until the model is ready; the profile pill is greyed out meanwhile. You can still type: the message is answered
+   once the model is loaded.
 
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.

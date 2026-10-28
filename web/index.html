@@ -151,6 +151,7 @@
     background-position: right 17px center, right 13px center; background-size: 4px 4px; background-repeat: no-repeat;
   }
   #profileBtn[hidden] { display: none; }
+  #profileBtn:disabled { opacity: .5; cursor: default; }  /* while a model loads */
   .note { text-align: center; color: var(--muted); font-size: 12px; margin: 14px 0; }
 
   /* panels (memory, profiles): slide up from the bottom */
@@ -428,6 +429,7 @@ let thinkingNow = false;  // Think first: status shows Thinking… until the fir
 let thinkOn = false, canThink = true;  // the menu's Think first switch; canThink = the current model can
 let previewing = false;   // "▶ Test" voice sample from the profile editor: played even while muted
 let readBtn = null, readEnded = false;  // 🔊 Read aloud: the button whose reading is playing
+let loadingLabel = null, loadingSince = 0, loadingTimer = null, loadingQueued = false;  // a model is loading
 let readSeq = 0;                        // numbers each tap; the server sends it back with "speak"
 const readPending = new Map();          // tap number -> button, until the server starts that reading
 
@@ -453,6 +455,10 @@ function setStatus(text, live = false) {
 
 function idleStatus() {
   if (ws?.readyState !== WebSocket.OPEN) return;
+  if (loadingLabel) {  // profile switch: Ollama is loading the model (seconds to a minute)
+    const secs = Math.round((Date.now() - loadingSince) / 1000);
+    return setStatus(`Loading ${loadingLabel}${loadingQueued ? ', then your message' : ''} (${secs} s)…`, true);
+  }
   if (mic && micMuted) setStatus('Mic muted');
   else if (mic && wakeName && wakeMode) setStatus(`💤 Say "${wakeName}"`, true);
   else if (mic) setStatus('Listening...', true);  // "..." = static dots, "…" = animated
@@ -583,6 +589,17 @@ function openSocket() {
   };
 }
 
+// The server loads a profile's model (label) or is done (null). The pill is off meanwhile; typing still works,
+// the message waits for the model. The status counts seconds: Ollama doesn't say how far along it is.
+function onLoading(label) {
+  clearInterval(loadingTimer);
+  loadingLabel = label || null;
+  loadingQueued = false;
+  profileBtn.disabled = !!loadingLabel;
+  if (loadingLabel) { loadingSince = Date.now(); loadingTimer = setInterval(idleStatus, 1000); }
+  idleStatus();
+}
+
 function onMessage(e) {
   if (typeof e.data !== 'string') return play(e.data);
   const m = JSON.parse(e.data);
@@ -603,7 +620,7 @@ function onMessage(e) {
     showThink();
     $('insText').maxLength = m.instructions_max || 1500;
     onInstructions({ text: m.instructions });
-    idleStatus();
+    onLoading(m.loading);  // still loading from before this page connected? (also calls idleStatus)
   }
   else if (m.type === 'wake') onWake(m.state);
   else if (m.type === 'profile') add('note', `— ${m.label} —`);  // the conversation continues
@@ -626,6 +643,7 @@ function onMessage(e) {
   }
   else if (m.type === 'profiles') onProfiles(m);
   else if (m.type === 'instructions') onInstructions(m);
+  else if (m.type === 'loading') onLoading(m.label);
   else if (m.type === 'error') {
     if (aiEl && !aiText) { aiEl.acts.remove(); aiEl.remove(); aiEl = null; }  // a reply that never got a word
     if (thinkingNow) { thinkingNow = false; idleStatus(); }
@@ -774,6 +792,7 @@ function sendText() {
   if (!text || ws?.readyState !== WebSocket.OPEN) return;
   ensureOut();
   ws.send(JSON.stringify({ type: 'text', text }));
+  if (loadingLabel) { loadingQueued = true; idleStatus(); }  // answered once the model is loaded
   input.value = '';
   fitInput();
   updateAction();

@@ -270,6 +270,7 @@ async def handler(ws):
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
           "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on, "log_locked": not assistant.LOG, "memory_use": assistant.memory_on,
           "wake_mode": Client.wake_mode, "think": assistant.think_on, "instructions": assistant.instructions,
+          "loading": assistant.loading,
           "instructions_max": assistant.INSTRUCTIONS_MAX})
     send(await asyncio.to_thread(profiles_event))  # asks Ollama: not on the event loop (audio keeps flowing)
     sender = asyncio.create_task(pump(ws, queue))
@@ -491,6 +492,7 @@ async def main():
           "⚠️   No password: anyone on your Wi-Fi can use the page (set WEB_PASSWORD in local.env)",
           flush=True)
     assistant.on_memory_change = memory_event
+    assistant.on_model_loading = lambda label: send({"type": "loading", "label": label})  # None = done
     threading.Thread(target=listen, args=(recorder, inbox), daemon=True).start()
     threading.Thread(target=conversation, daemon=True).start()
 
