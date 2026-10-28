@@ -21,6 +21,7 @@ Ideas to make this the perfect local AI assistant. Pick one, build it, tick it o
 - [x] Profiles panel on the web page: switch, edit (voice with ▶ Test, sliders, model, prompt), new from the template, rename, duplicate, delete; only `default.md` and `_template.md` in git
 - [x] Use memory switch (☰ menu, `/memory off`): the AI ignores and learns nothing; facts stay
 - [x] Private mode: ☰ menu → Save conversation log off (console `/log off`); nothing saved until it's on again
+- [x] Scroll-to-latest ↓ button; the chat follows new text only while you're at the bottom
 - [x] Copy, Read aloud and Share under each reply; Read aloud uses the current voice, isn't logged and works while muted
 - [x] Think first moved from profiles to a ☰ menu switch (`/think on|off`), saved in `settings.json`; greyed out for models that can't think
 - [x] Instructions (☰ menu, `/instructions`): your own rules for every profile, above its prompt; replies stay speakable; saved in `settings.json`

@@ -59,6 +59,8 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
    current profile's voice, also when the mic is off or the reply arrived as silent text; tap ■ to stop) and
    **Share** (the device's share menu, as plain text — nothing is uploaded; shown only where the browser
    supports it: phones, tablets, Windows/Mac, not Linux desktop or desktop Firefox).
+7. Scrolled up to read? New text no longer pulls you down; a round **↓** button appears above the text box and
+   brings you back to the latest message.
 
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.

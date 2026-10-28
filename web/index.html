@@ -45,7 +45,7 @@
   #log { flex: 1; overflow-y: auto; padding: 12px 14px 8px; scrollbar-width: thin; }
   .msg { margin: 10px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .you {
-    background: var(--card); padding: 7px 12px; border-radius: 18px;
+    background: var(--card); padding: 7px 12px; border-radius: 18px; border: 1px solid var(--line);  /* thin outline, like the Claude app */
     max-width: 80%; width: fit-content; margin-left: auto;
   }
   .ai { max-width: 100%; }
@@ -67,7 +67,17 @@
   .msg code { font-family: ui-monospace, monospace; font-size: .9em; background: var(--card); padding: 1px 5px; border-radius: 5px; }
 
   /* composer card (like the Claude app): text on top; memory, profile and the action button below */
-  footer { padding: 6px 12px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  footer { position: relative; padding: 6px 12px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  /* ↓ when scrolled up: jumps back to the latest message (like the Claude app) */
+  #toBottom {
+    position: absolute; left: 50%; top: -50px; transform: translateX(-50%); z-index: 1;
+    display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,.18);
+  }
+  #toBottom[hidden] { display: none; }
+  #toBottom:focus { outline: none; }
+  #toBottom svg { width: 18px; height: 18px; }
   #form {
     padding: 10px 10px 10px; border: 1px solid var(--line); border-radius: 24px; background: var(--card);
     transition: border-color .15s;
@@ -249,6 +259,8 @@
 <body>
 <div id="log"></div>
 <footer>
+  <button id="toBottom" type="button" aria-label="Scroll to the latest message" title="Scroll to the latest message" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg></button>
   <div id="bar"><span id="dot"></span><span id="status" role="status">Connecting…</span></div>
   <form id="form">
     <textarea id="text" rows="1" placeholder="Message…" autocomplete="off" enterkeyhint="enter"></textarea>
@@ -447,12 +459,24 @@ function idleStatus() {
   else setStatus('Ready');
 }
 
+// ---- scrolling: new text is followed only while you're at the bottom; scrolled up, ↓ brings you back ----
+const toBottom = $('toBottom');
+const nearBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+function follow(stick) {  // stick = was at the bottom before the new text arrived
+  if (stick) log.scrollTop = log.scrollHeight;
+  toBottom.hidden = nearBottom();
+}
+log.addEventListener('scroll', () => { toBottom.hidden = nearBottom(); });
+window.addEventListener('resize', () => { toBottom.hidden = nearBottom(); });  // e.g. the keyboard opening
+toBottom.onclick = () => log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
+
 function add(cls, text) {
+  const stick = cls === 'you' || nearBottom();  // your own message always brings you down
   const el = document.createElement('div');
   el.className = 'msg ' + cls;
   el.textContent = text;
   log.appendChild(el);
-  log.scrollTop = log.scrollHeight;
+  follow(stick);
   return el;
 }
 
@@ -470,11 +494,12 @@ Object.assign(ICONS, {  // the action button's icons, plus these
 
 // el.raw = the text as written (markdown); el.body = what's shown; el.acts = the row of buttons below a reply
 function addMessage(cls, text = '') {
+  const stick = cls === 'you' || nearBottom();  // before anything is added: was the chat at the bottom?
   const el = add(cls, '');
   el.raw = text;
   el.body = el.appendChild(document.createElement('div'));
   el.body.textContent = text;
-  if (cls !== 'ai') return el;  // your own messages: no actions
+  if (cls !== 'ai') { follow(stick); return el; }  // scroll after the text is in (a long message is tall)
   el.acts = document.createElement('div');
   el.acts.className = 'acts ' + cls;
   el.acts.hidden = true;  // until the first word arrives
@@ -489,6 +514,7 @@ function addMessage(cls, text = '') {
   button('speak', 'Read aloud', b => readAloud(el, b));
   button('share', 'Share', () => navigator.share({ text: plainText(el.raw) }).catch(() => {})).hidden = !navigator.share;
   el.after(el.acts);
+  follow(stick);
   return el;
 }
 
@@ -595,7 +621,9 @@ function onMessage(e) {
     showLogging(m.value);
     add('note', m.value ? '— saving again —' : '— private: not saved —');
   }
-  else if (m.type === 'new_conversation') { log.replaceChildren(); aiEl = null; aiText = ''; readDone(); }  // clean chat
+  else if (m.type === 'new_conversation') {  // clean chat
+    log.replaceChildren(); aiEl = null; aiText = ''; readDone(); toBottom.hidden = true;
+  }
   else if (m.type === 'profiles') onProfiles(m);
   else if (m.type === 'instructions') onInstructions(m);
   else if (m.type === 'error') {
@@ -631,11 +659,12 @@ function onMessage(e) {
   else if (m.type === 'thinking') { thinkingNow = true; setStatus('Thinking…', true); }
   else if (m.type === 'token' && aiEl) {
     if (thinkingNow) { thinkingNow = false; idleStatus(); }
+    const stick = nearBottom();
     aiText += m.text;
     aiEl.raw = aiText;
     aiEl.body.innerHTML = format(aiText);
     aiEl.acts.hidden = false;
-    log.scrollTop = log.scrollHeight;
+    follow(stick);
   }
 }
 
