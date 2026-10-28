@@ -263,6 +263,9 @@
       <button id="useMemItem" class="item" type="button" role="menuitemcheckbox" aria-checked="true">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
         <span>Use memory</span><i class="switch" aria-hidden="true"></i></button>
+      <button id="thinkItem" class="item" type="button" role="menuitemcheckbox" aria-checked="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3C9.23 3 6.19 5.95 6 9.66l-1.92 2.53c-.24.31 0 .81.42.81H6v3c0 1.11.89 2 2 2h1v3h7v-4.69c2.37-1.12 4-3.51 4-6.31 0-3.86-3.12-7-7-7z"/></svg>
+        <span>Think first <small id="thinkNote"></small></span><i class="switch" aria-hidden="true"></i></button>
       <button id="logItem" class="item" type="button" role="menuitemcheckbox" aria-checked="true">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
         <span>Save conversation log</span><i class="switch" aria-hidden="true"></i></button>
@@ -340,8 +343,6 @@
     <label class="field"><span>Model</span><select id="pfModel"></select></label>
     <label class="field"><span>Context <small>(how much of the chat it sees; bigger uses more GPU memory)</small></span>
       <select id="pfContext"></select></label>
-    <label class="field check-row"><input id="pfThink" type="checkbox">
-      <span>Think first <small id="pfThinkNote">(smarter on hard questions, a few seconds slower)</small></span></label>
     <label class="field"><span>Prompt (instructions; replies are spoken, so ask for short sentences)</span>
       <textarea id="pfPrompt" rows="6"></textarea></label>
     <p id="pfError" role="alert"></p>
@@ -396,7 +397,8 @@ let replyEnded = false;   // server sent all audio; tell it "played" once this p
 let muted = true;         // replies are spoken only while talking (mic on)
 let replaced = false;     // another device took over; tapping the status line takes it back
 let micMuted = false;     // mute button: the mic sends silence, replies keep playing
-let thinkingNow = false;  // "think: on" profile: status shows Thinking… until the first word
+let thinkingNow = false;  // Think first: status shows Thinking… until the first word
+let thinkOn = false, canThink = true;  // the menu's Think first switch; canThink = the current model can
 let previewing = false;   // "▶ Test" voice sample from the profile editor: played even while muted
 
 // Texts ending in "…" get animated dots: Connecting → Connecting. → Connecting.. → Connecting...
@@ -483,6 +485,8 @@ function onMessage(e) {
     $('logItem').disabled = !!m.log_locked;  // LOG=0 on the server: always off
     wakeMode = !!m.wake_mode;
     showWakeMode();
+    thinkOn = !!m.think;
+    showThink();
     $('insText').maxLength = m.instructions_max || 1500;
     onInstructions({ text: m.instructions });
     idleStatus();
@@ -490,6 +494,11 @@ function onMessage(e) {
   else if (m.type === 'wake') onWake(m.state);
   else if (m.type === 'profile') add('note', `— ${m.label} —`);  // the conversation continues
   else if (m.type === 'wake_mode') { wakeMode = !!m.value; showWakeMode(); idleStatus(); }
+  else if (m.type === 'think') {
+    thinkOn = !!m.value;
+    showThink();
+    add('note', !thinkOn ? '— think first off —' : canThink ? '— think first on —' : "— think first on (this model can't) —");
+  }
   else if (m.type === 'memory_use') {
     showMemoryUse(m.value);
     add('note', m.value ? '— memory on —' : '— memory off —');
@@ -742,6 +751,15 @@ $('bar').onclick = () => {
 function showMemoryUse(on) { $('useMemItem').setAttribute('aria-checked', String(on)); }
 $('useMemItem').onclick = () => wsSend({ type: 'memory_use', value: $('useMemItem').getAttribute('aria-checked') !== 'true' });
 
+// "Think first": the model reasons silently before answering (smarter, a few seconds slower).
+// Saved on the server; greyed out while the current profile's model can't (it applies again later).
+function showThink() {
+  $('thinkItem').setAttribute('aria-checked', String(thinkOn));
+  $('thinkItem').disabled = !canThink;
+  $('thinkNote').textContent = canThink ? '' : "(this model can't)";
+}
+$('thinkItem').onclick = () => wsSend({ type: 'think', value: !thinkOn });
+
 // "Save conversation log" off = private mode: the server writes nothing to conversations/
 function showLogging(on) {
   $('logItem').setAttribute('aria-checked', String(on));
@@ -904,6 +922,8 @@ function onProfiles(m) {
   profileBtn.textContent = current?.label || m.current;
   profileBtn.title = profileBtn.textContent;  // the full name, if it's cut off
   profileBtn.hidden = false;
+  canThink = m.can_think !== false;  // the model actually running (the server knows about fallbacks)
+  showThink();
   renderProfiles();
 }
 
@@ -936,8 +956,7 @@ function showProfileList() {
 
 const f = {
   name: $('pfName'), label: $('pfLabel'), voice: $('pfVoice'), speed: $('pfSpeed'), pause: $('pfPause'),
-  temperature: $('pfTemp'), silence: $('pfSilence'), model: $('pfModel'), context: $('pfContext'), think: $('pfThink'),
-  prompt: $('pfPrompt'),
+  temperature: $('pfTemp'), silence: $('pfSilence'), model: $('pfModel'), context: $('pfContext'), prompt: $('pfPrompt'),
 };
 
 function slugify(text) { return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40); }
@@ -973,8 +992,6 @@ function fillEditor(p, old) {
   for (let n = low; n <= high; n *= 2) sizes.push([String(n), `${tokens(n)} tokens (~${Math.round(n * 0.75 / 100) * 100} words)`]);
   setOptions(f.context, [['', `Default (${tokens(profiles.default_context)})`], ...sizes], String(p.context || ''));
   f.speed.value = p.speed; f.pause.value = p.pause; f.temperature.value = p.temperature; f.silence.value = p.silence;
-  f.think.checked = !!p.think;
-  updateThink();
   f.prompt.value = p.prompt || '';
   $('pfDelete').hidden = !old || old === 'default';
   $('pfDup').hidden = !old;
@@ -982,15 +999,6 @@ function fillEditor(p, old) {
   $('pfSave').disabled = false;
   showValues();
   $('profForm').scrollTop = 0;
-}
-
-// "Think first" only for models that can (Ollama reports it; qwen3 yes, llama3.2/qwen2.5 no)
-function updateThink() {
-  const model = f.model.value || profiles.default_model;
-  const can = (profiles.thinking_models || []).includes(model);
-  f.think.disabled = !can;
-  if (!can) f.think.checked = false;
-  $('pfThinkNote').textContent = can ? '(smarter on hard questions, a few seconds slower)' : `(${model} can't)`;
 }
 
 function editorData() {
@@ -1008,7 +1016,6 @@ profileBtn.onclick = () => {
 $('profBack').onclick = showProfileList;
 $('profNew').onclick = () => fillEditor({ ...profiles.template, name: '', label: '' }, '');
 for (const input of [f.speed, f.pause, f.temperature, f.silence, f.name, f.label]) input.oninput = showValues;
-f.model.onchange = updateThink;
 $('profForm').onsubmit = e => {
   e.preventDefault();
   $('pfError').textContent = '';

@@ -135,9 +135,10 @@ def profiles_event():
     return {"type": "profiles", "current": assistant.profile["name"],
             "list": sorted((profile_for_editor(n) for n in list_profiles()), key=lambda p: p["label"].lower()),
             "template": profile_for_editor(""), "voices": available_voices(),
-            "models": (models := installed_models()), "default_model": BASE_MODEL, "ranges": PROFILE_RANGES,
+            "models": installed_models(), "default_model": BASE_MODEL, "ranges": PROFILE_RANGES,
             "default_context": NUM_CTX, "context_range": CONTEXT_RANGE,
-            "thinking_models": [m for m in models if model_can_think(m)]}
+            # the model actually running (a profile naming a missing one falls back): for the Think first switch
+            "can_think": model_can_think(assistant.LLM_MODEL)}
 
 
 def preview(data):
@@ -225,7 +226,7 @@ def handle(source, text):
         print(f"💬  {source} message", flush=True)
     send({"type": "user", "text": text})
     send({"type": "reply"})
-    if thinking():  # "think: on": a few silent seconds before the first word
+    if thinking():  # Think first (☰ menu): a few silent seconds before the first word
         send({"type": "thinking"})
     tokens = guarded(llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),
                                 source=source))
@@ -257,7 +258,7 @@ async def handler(ws):
     print("\n🌐  Device connected", flush=True)
     send({"type": "hello", "wake": WAKE_WORD.replace("_", " "), "sleep_sound": SLEEP_SOUND,
           "memory": memory is not None, "password": bool(PASSWORD), "log": assistant.log_on, "log_locked": not assistant.LOG, "memory_use": assistant.memory_on,
-          "wake_mode": Client.wake_mode, "instructions": assistant.instructions,
+          "wake_mode": Client.wake_mode, "think": assistant.think_on, "instructions": assistant.instructions,
           "instructions_max": assistant.INSTRUCTIONS_MAX})
     send(await asyncio.to_thread(profiles_event))  # asks Ollama: not on the event loop (audio keeps flowing)
     sender = asyncio.create_task(pump(ws, queue))
@@ -280,7 +281,8 @@ async def handler(ws):
                 send(await asyncio.to_thread(profiles_event))
             elif m.get("type") == "profile_save":  # the editor: new, edited or renamed profile
                 old = str(m.get("old") or "") or None
-                name, error = write_profile(m.get("data") or {}, old)
+                # checks the model with Ollama over HTTP: not on the event loop
+                name, error = await asyncio.to_thread(write_profile, m.get("data") or {}, old)
                 if error:
                     send({"type": "profile_error", "error": error})
                     continue
@@ -308,6 +310,10 @@ async def handler(ws):
                 print("\n📌  Instructions saved" if assistant.instructions else "\n📌  Instructions removed",
                       flush=True)
                 send({"type": "instructions", "text": assistant.instructions, "saved": True})
+            elif m.get("type") == "think":  # the menu's "Think first" switch (used only if the model can)
+                assistant.set_think(m.get("value"))
+                print(f"\n🤔  Think first {'on' if assistant.think_on else 'off'}", flush=True)
+                send({"type": "think", "value": assistant.think_on})
             elif m.get("type") == "memory_use":  # the menu's "Use memory" switch
                 if memory:
                     assistant.set_memory_use(m.get("value"))

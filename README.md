@@ -49,7 +49,10 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
 4. Next to it, the **microphone button** mutes only the mic while talking (replies keep playing), e.g. while
    you speak to someone else; tap again to unmute.
 5. **☰** (left) opens the menu: **New conversation** (fresh start with a clean chat, memory kept; console:
-   `/new`), **Instructions** (your own rules for every profile, see below), **Memory**, **Use memory** switch (off = the AI ignores and learns nothing), **Save conversation
+   `/new`), **Instructions** (your own rules for every profile, see below), **Memory**, **Use memory** switch (off = the AI ignores and learns nothing), **Think first** switch (it reasons
+   silently before answering: smarter on hard questions, a few seconds slower, the page shows *Thinking…*;
+   greyed out when the profile's model can't — qwen3:8b and Qwen3.6 can, the Smart 30B Instruct, qwen2.5 and
+   llama3.2 can't; console `/think on|off`), **Save conversation
    log** switch (off = private), **Wake word** switch and
    **Log out** (with a password). The pill next to it switches **profiles**.
 
@@ -174,7 +177,7 @@ and settings (☰ → **New conversation** or console `/new` starts over). The p
 **On the web page**, the profile button under the text field opens the **Profiles** panel:
 - **Tap a profile** to switch to it (✓ = the current one).
 - **✎** opens the editor: name, label, voice (with **▶ Test** to hear it with the chosen speed and pause, before saving),
-  speed, pause, temperature, silence, model, context, think first (only for models that can) and the prompt. **Save** writes `profiles/<name>.md`; saving the active profile applies it right away
+  speed, pause, temperature, silence, model, context and the prompt. **Save** writes `profiles/<name>.md`; saving the active profile applies it right away
   and keeps the conversation. Renaming changes the file name; **Duplicate** makes a copy, **Delete** asks first.
 - **+ New profile** starts from `profiles/_template.md`. The name is made from the label if you leave it empty.
 - Only installed voices and models can be chosen; `default` can be edited but not renamed or deleted.
@@ -203,14 +206,13 @@ and settings (☰ → **New conversation** or console `/new` starts over). The p
   | `temperature` | 0.3 focused, 0.9 lively | 0.0 – 1.0 | 0.7 |
   | `silence` | seconds you can pause before it answers (longer = time to think mid-sentence) | 0.3 – 2.0 | `SILENCE` (0.45) |
   | `model` | AI model; a different one takes ~20–60 s to load on every switch | installed: `qwen3:8b`, `qwen2.5:7b`, `llama3.2:3b` (`ollama list`) | `LLM_MODEL` |
-  | `think` | reason silently before answering: smarter on hard questions, a few seconds slower (the page shows *Thinking…*) | `on` / `off`; only models that can (qwen3 yes, qwen2.5/llama3.2 no) | off |
   | `context` | how much of the conversation it sees, in tokens (~0.75 words each; older messages drop out). Bigger = longer chats, more GPU memory; a change reloads the model on switch | 2048 – 32768 (on 8 GB, `qwen3:8b` fits 8192) | `NUM_CTX` (4096) |
 
   A wrong value (not a number, a voice or model that isn't there) is skipped with a ⚠️ warning and the normal value is used.
 
 ## Saved settings (`settings.json`)
 Choices you make while using it are saved automatically in `settings.json` (project folder, not in git)
-and come back after a restart: the **active profile**, **Instructions**, **Use memory**, **Save conversation log** and
+and come back after a restart: the **active profile**, **Instructions**, **Use memory**, **Think first**, **Save conversation log** and
 **wake word** on/off — shared by every device and the console. It's plain JSON; delete it to go back to the defaults.
 Settings you set up by hand (GPUs, model, password…) stay in `local.env`; `PROFILE=…` and `LOG=0` there
 (or on the command line) still win.

@@ -4,7 +4,6 @@ speed: 1
 pause: 0.2
 temperature: 0.7
 silence: 0.45
-think: off
 # model: (not set = LLM_MODEL from local.env)
 # context: (not set = NUM_CTX from local.env)
 

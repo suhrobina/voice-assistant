@@ -17,21 +17,18 @@
 #              longer = time to think mid-sentence (e.g. a teacher profile: 0.8)
 # model        AI model (must be installed, see "ollama list")  qwen3:8b, qwen2.5:7b, llama3.2:3b
 #              a different model takes ~20-60 s to load on every switch     (LLM_MODEL in local.env)
-# think        reason silently before answering: smarter on hard questions,  on / off  (off)
-#              a few seconds slower. Only models that can (qwen3 yes; qwen2.5, llama3.2 no)
 # context      how much of the conversation it sees, in tokens       2048 - 32768   (NUM_CTX, 4096)
 #              (~0.75 words each; older messages drop out). Bigger = longer chats, but more
 #              GPU memory: on 8 GB, qwen3:8b fits 8192. A change reloads the model (~5 s)
 #
-# A wrong value (not a number, voice or model not found, think with a model that can't) is skipped
-# with a warning.
+# A wrong value (not a number, voice or model not found) is skipped with a warning.
+# "Think first" (reason before answering) is no longer a profile setting: it's a switch in the ☰ menu.
 label: My profile
 voice: af_heart
 speed: 1.0
 pause: 0.2
 temperature: 0.7
 silence: 0.45
-think: off
 # model: (not set = LLM_MODEL from local.env)
 # context: (not set = NUM_CTX from local.env)
 

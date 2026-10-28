@@ -87,16 +87,6 @@ memory = Memory(MEMORY_FILE, verbose=PRINT_CHAT) if MEMORY else None
 # profiles/<name>.md: optional "key: value" lines, a blank line, then the prompt.
 # Keys a profile leaves out fall back to the settings above. profiles/_template.md explains
 # every key; files starting with "_" are not profiles.
-def on_off(value):
-    """"on"/"off" (also yes/no, true/false, 1/0) -> bool."""
-    v = value.strip().lower()
-    if v in ("on", "yes", "true", "1"):
-        return True
-    if v in ("off", "no", "false", "0"):
-        return False
-    raise ValueError(value)
-
-
 CONTEXT_RANGE = (2048, 32768)
 
 
@@ -109,7 +99,8 @@ def context_size(value):
 
 
 PROFILE_KEYS = {"label": str, "voice": str, "speed": float, "pause": float,
-                "temperature": float, "model": str, "think": on_off, "silence": float, "context": context_size}
+                "temperature": float, "model": str, "silence": float, "context": context_size}
+RETIRED_KEYS = {"think"}  # moved to the ☰ menu (Think first); old profile files may still have the line
 
 
 def list_profiles():
@@ -129,7 +120,7 @@ def load_profile(name):
 def _profile_defaults(name):
     return {"name": name, "label": name.replace("_", " ").replace("-", " ").capitalize(),
             "prompt": SYSTEM_PROMPT, "voice": VOICE, "speed": TTS_SPEED, "pause": SENTENCE_PAUSE,
-            "temperature": BASE_TEMPERATURE, "model": BASE_MODEL, "think": False, "silence": SILENCE,
+            "temperature": BASE_TEMPERATURE, "model": BASE_MODEL, "silence": SILENCE,
             "context": NUM_CTX}
 
 
@@ -142,8 +133,11 @@ def _read_profile(path, name):
             if m and m.group(1) in PROFILE_KEYS:
                 try:
                     p[m.group(1)] = PROFILE_KEYS[m.group(1)](m.group(2).strip())
-                except ValueError:  # e.g. "speed: fast", "think: maybe", "context: 999999"
+                except ValueError:  # e.g. "speed: fast", "context: 999999"
                     print(f"⚠️  profiles/{name}.md: '{line}' is not a valid value, ignored", flush=True)
+                seen = True
+                continue
+            if m and m.group(1) in RETIRED_KEYS:  # skipped quietly (it would otherwise start the prompt)
                 seen = True
                 continue
             if line.startswith("#"):  # comments before/among the settings (the template's notes)
@@ -180,9 +174,6 @@ def check_profile(p):
             p["model"] = BASE_MODEL
     except (requests.RequestException, ValueError):
         pass  # Ollama not reachable; warm_up_llm will say so
-    if p["think"] and not model_can_think(p["model"]):
-        print(f"⚠️  Profile {p['name']}: {p['model']} can't think first, think is off", flush=True)
-        p["think"] = False
     return p
 
 
@@ -191,6 +182,8 @@ _can_think = {}
 
 def model_can_think(model):
     """Ollama reports "thinking" for models that can reason before answering (qwen3: yes)."""
+    if "instruct" in model.split(":")[-1]:  # e.g. qwen3:30b-a3b-instruct-2507: the template allows it, but
+        return False                        # it never thinks (0 characters of thinking, same answer)
     if model not in _can_think:
         try:
             r = requests.post(OLLAMA_URL.replace("/api/chat", "/api/show"), json={"model": model}, timeout=5)
@@ -282,15 +275,12 @@ def write_profile(data, old_name=None):
             context = context_size(context)
         except ValueError:
             return name, f"context must be a whole number between {CONTEXT_RANGE[0]} and {CONTEXT_RANGE[1]}"
-    think = data.get("think") in (True, "on", "true", "1", 1)
-    if think and not model_can_think(model or BASE_MODEL):
-        return name, f"{model or BASE_MODEL} can't think first; choose a model that can (e.g. qwen3)"
     prompt = str(data.get("prompt", "")).strip()
     if not prompt:
         return name, "The prompt can't be empty"
     lines = [f"label: {label}", f"voice: {voice}", f"speed: {values['speed']:g}",
              f"pause: {values['pause']:g}", f"temperature: {values['temperature']:g}",
-             f"silence: {values['silence']:g}", f"think: {'on' if think else 'off'}",
+             f"silence: {values['silence']:g}",
              # no model line = the normal model, so changing LLM_MODEL in local.env still works
              f"model: {model}" if model else NO_MODEL_LINE,
              f"context: {context}" if context else NO_CONTEXT_LINE]
@@ -313,7 +303,7 @@ def delete_profile(name):
     return None
 
 
-# ---- settings.json: {"profile", "instructions", "memory", "save_log", "wake_word"}, written on every change ----
+# ---- settings.json: {"profile", "instructions", "memory", "think", "save_log", "wake_word"}, written on change ----
 _settings_lock = threading.Lock()
 
 
@@ -331,7 +321,7 @@ def load_settings():
     except (OSError, ValueError) as e:
         print(f"⚠️  {SETTINGS_FILE} unreadable ({e}), using defaults", flush=True)
     s = s if isinstance(s, dict) else {}
-    defaults = {"profile": "default", "instructions": "", "memory": True, "save_log": True,
+    defaults = {"profile": "default", "instructions": "", "memory": True, "think": False, "save_log": True,
                 "wake_word": False}  # file order
     full = {k: s.get(k, v) for k, v in defaults.items()} | s  # every setting, in this order (+ unknown keys)
     if list(full) != list(s):  # missing or out of order: rewrite the file
@@ -381,6 +371,17 @@ memory_on = settings.get("memory", True) is not False
 
 
 MEMORY_NOTE = "Memory was just switched"  # start of the note set_memory_use adds to the conversation
+
+# The menu's "Think first" switch (console /think on|off; saved): reason silently before answering.
+# Only for models that can (thinking()); the choice stays while a profile uses one that can't.
+think_on = settings.get("think") is True
+
+
+def set_think(on):
+    global think_on
+    think_on = bool(on)
+    save_setting("think", think_on)
+    return think_on
 
 # The menu's "Instructions" (console /instructions; saved): the user's own rules for every profile,
 # above the profile's prompt. Empty = nothing added to the prompt.
@@ -589,7 +590,7 @@ def llm_stream(user_text, on_token=None, source="voice"):
         "messages": list(history),  # a copy: the reader thread serializes it while history may change
         "stream": True,
         "keep_alive": -1,  # keep model in VRAM -> no reload delay
-        "think": thinking(),  # profile "think: on" = reason silently first (qwen3); otherwise answer at once
+        "think": thinking(),  # menu's Think first = reason silently first (qwen3); otherwise answer at once
         "options": dict(LLM_OPTIONS),
     }
     reply = ""
@@ -651,8 +652,8 @@ def speakable(tokens):
 
 
 def thinking():
-    """The current profile wants the model to think first, and the model can."""
-    return profile["think"] and model_can_think(LLM_MODEL)
+    """Think first is on (☰ menu, /think) and the current model can."""
+    return think_on and model_can_think(LLM_MODEL)
 
 
 def warm_up_llm():
@@ -867,6 +868,7 @@ COMMANDS_HELP = """Commands (type and press Enter):
   /instructions       show your instructions (for every profile, above its prompt)
   /instructions X     set them, e.g. /instructions Call me Sam. Use metric units.
   /instructions clear remove them
+  /think on    reason silently before answering: smarter on hard questions, slower (/think off)
   /log off     private: stop saving the conversation log (/log on = save again)
   /memory      list what it remembers about you
   /memory off  the AI ignores memory and learns nothing (/memory on = use it again)
@@ -963,6 +965,13 @@ def main():
                 print(f"📌  Instructions (for every profile):\n{instructions}", flush=True)
             else:
                 print("📌  No instructions. Set them with /instructions TEXT", flush=True)
+        elif words[0] == "/think":
+            if len(words) > 1 and words[1] in ("on", "off"):
+                set_think(words[1] == "on")
+            can = model_can_think(LLM_MODEL)
+            print(f"🤔  Think first {'on' if think_on else 'off'}" +
+                  ("" if can or not think_on else f" (but {LLM_MODEL} can't think, so it answers at once)") +
+                  ("" if len(words) > 1 else ". Usage: /think on or /think off"), flush=True)
         elif words[0] in ("/memory", "/remember", "/forget") and not memory:
             print("Memory is off (started with MEMORY=0).", flush=True)
         elif words[0] == "/memory" and len(words) > 1 and words[1] in ("on", "off"):
