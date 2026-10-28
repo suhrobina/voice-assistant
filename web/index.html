@@ -49,6 +49,21 @@
     max-width: 80%; width: fit-content; margin-left: auto;
   }
   .ai { max-width: 100%; }
+  /* under each reply: copy / read aloud / share, sized like the Claude app's row */
+  .acts { display: flex; gap: 4px; margin: -10px 0 6px -2px; }
+  .acts[hidden], .acts button[hidden] { display: none; }
+  .acts button {
+    display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+    background: none; color: var(--muted); cursor: pointer;
+  }
+  .acts button:focus { outline: none; }  /* the square ring some browsers draw after a tap */
+  .acts button:focus-visible { outline: 2px solid var(--muted); outline-offset: 1px; }  /* keyboard: round ring */
+  .acts button.reading { background: var(--card); color: var(--fg); }
+  /* hover only with a mouse: touchscreens keep :hover on a tapped button until the next tap elsewhere */
+  @media (hover: hover) { .acts button:hover { background: var(--card); color: var(--fg); } }
+  .acts button:active { background: var(--chip); color: var(--fg); }
+  .acts svg { width: 15px; height: 15px; overflow: visible; }
+  .acts svg * { vector-effect: non-scaling-stroke; }  /* same line thickness in every icon */
   .msg code { font-family: ui-monospace, monospace; font-size: .9em; background: var(--card); padding: 1px 5px; border-radius: 5px; }
 
   /* composer card (like the Claude app): text on top; memory, profile and the action button below */
@@ -400,6 +415,9 @@ let micMuted = false;     // mute button: the mic sends silence, replies keep pl
 let thinkingNow = false;  // Think first: status shows Thinking… until the first word
 let thinkOn = false, canThink = true;  // the menu's Think first switch; canThink = the current model can
 let previewing = false;   // "▶ Test" voice sample from the profile editor: played even while muted
+let readBtn = null, readEnded = false;  // 🔊 Read aloud: the button whose reading is playing
+let readSeq = 0;                        // numbers each tap; the server sends it back with "speak"
+const readPending = new Map();          // tap number -> button, until the server starts that reading
 
 // Texts ending in "…" get animated dots: Connecting → Connecting. → Connecting.. → Connecting...
 const dotTimers = new Map();
@@ -438,6 +456,74 @@ function add(cls, text) {
   return el;
 }
 
+// ---- messages; AI replies get actions underneath: copy, read aloud and share ----
+// Outline icons in the style of the Claude apps, from Lucide (lucide.dev, ISC license). Each gets a frame
+// (viewBox) around its own drawing, so all look the same size; the line stays 1.6 px whatever the frame.
+const line = (box, d) => `<svg viewBox="${box}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+Object.assign(ICONS, {  // the action button's icons, plus these
+  copy: line('1 1 22 22', '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'),
+  done: line('2 1.5 20 20', '<path d="M20 6 9 17l-5-5"/>'),
+  speak: line('1 1 22 22', '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>'),
+  share: line('1 1 22 22', '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/>'),
+  reading: line('2 2 20 20', '<rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" stroke="none"/>'),
+});
+
+// el.raw = the text as written (markdown); el.body = what's shown; el.acts = the row of buttons below a reply
+function addMessage(cls, text = '') {
+  const el = add(cls, '');
+  el.raw = text;
+  el.body = el.appendChild(document.createElement('div'));
+  el.body.textContent = text;
+  if (cls !== 'ai') return el;  // your own messages: no actions
+  el.acts = document.createElement('div');
+  el.acts.className = 'acts ' + cls;
+  el.acts.hidden = true;  // until the first word arrives
+  const button = (icon, title, onclick) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.title = title; b.setAttribute('aria-label', title); b.innerHTML = ICONS[icon];
+    b.onclick = () => onclick(b);
+    el.acts.append(b);
+    return b;
+  };
+  button('copy', 'Copy', b => copyText(el.raw, b));
+  button('speak', 'Read aloud', b => readAloud(el, b));
+  button('share', 'Share', () => navigator.share({ text: plainText(el.raw) }).catch(() => {})).hidden = !navigator.share;
+  el.after(el.acts);
+  return el;
+}
+
+async function copyText(text, b) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {  // no clipboard access (e.g. an older browser): the classic way
+    const t = Object.assign(document.createElement('textarea'), { value: text });
+    document.body.append(t); t.select(); document.execCommand('copy'); t.remove();
+  }
+  b.innerHTML = ICONS.done; b.title = 'Copied';
+  setTimeout(() => { b.innerHTML = ICONS.copy; b.title = 'Copy'; }, 1500);
+}
+
+// Share as plain text: many apps would show **, # and ` literally (Copy keeps them)
+function plainText(md) {
+  return md.replace(/\*\*|__|~~|`/g, '').replace(/^#{1,6}\s+/gm, '').replace(/^(\s*)[*-]\s+/gm, '$1• ');
+}
+
+// 🔊: the server reads it in the current profile's voice; tapping again (■) stops it
+function readAloud(el, b) {
+  if (b === readBtn) { wsSend({ type: 'speak_stop' }); return; }
+  ensureOut();  // a tap: browsers allow audio from here on
+  const id = ++readSeq;
+  readPending.set(id, b);
+  wsSend({ type: 'speak', text: el.raw, id });
+}
+
+// The reading ends: stopped (now = true), or all its audio sent ("end") and played
+function readDone(now = true) {
+  if (!readBtn || (!now && !(readEnded && !sources.length))) return;
+  readBtn.classList.remove('reading'); readBtn.innerHTML = ICONS.speak; readBtn.title = 'Read aloud';
+  readBtn = null; readEnded = false;
+}
+
 // ---- connection (opens on page load, reconnects automatically) ----
 // Ask the server first: 204 = open the socket, 401 = password needed (lock screen), no answer = retry
 async function connect() {
@@ -458,6 +544,8 @@ function openSocket() {
   ws.onmessage = onMessage;
   ws.onclose = e => {
     stopPlayback();
+    readDone();  // the reading playing is cut off; taps still queued on the server keep their button
+                 // (it runs them after reconnecting; entries older than the next reading are dropped then)
     if (e.code === 4000) {  // another device (or tab) took over: wait for a tap instead of taking it back
       if (mic) stopMic();
       replaced = true;
@@ -507,12 +595,13 @@ function onMessage(e) {
     showLogging(m.value);
     add('note', m.value ? '— saving again —' : '— private: not saved —');
   }
-  else if (m.type === 'new_conversation') { log.replaceChildren(); aiEl = null; aiText = ''; }  // clean chat
+  else if (m.type === 'new_conversation') { log.replaceChildren(); aiEl = null; aiText = ''; readDone(); }  // clean chat
   else if (m.type === 'profiles') onProfiles(m);
   else if (m.type === 'instructions') onInstructions(m);
   else if (m.type === 'error') {
-    if (aiEl && !aiText) { aiEl.remove(); aiEl = null; }  // a reply that never got a word
+    if (aiEl && !aiText) { aiEl.acts.remove(); aiEl.remove(); aiEl = null; }  // a reply that never got a word
     if (thinkingNow) { thinkingNow = false; idleStatus(); }
+    readDone();  // a reading that failed: back to 🔊 (taps still waiting keep their button)
     add('note', `⚠️ ${m.text}`);
     $('pfSave').disabled = $('pfTest').disabled = false;
   }
@@ -521,18 +610,31 @@ function onMessage(e) {
   else if (m.type === 'preview') { previewing = true; ignoreAudio = false; stopPlayback(); }
   else if (m.type === 'preview_end') { previewing = false; $('pfTest').disabled = false; }
   else if (m.type === 'memory') onMemory(m);
+  else if (m.type === 'end' && readBtn) { readEnded = true; readDone(false); }
   else if (m.type === 'end' && !previewing) { replyEnded = true; reportPlayed(); }
+  else if (m.type === 'speak') {  // 🔊 the server starts reading a reply aloud
+    ignoreAudio = false; stopPlayback(); readEnded = false;
+    readBtn = readPending.get(m.id) || null;  // the button that asked for this reading (gone = no button)
+    for (const id of readPending.keys()) if (id <= m.id) readPending.delete(id);
+    if (readBtn) { readBtn.classList.add('reading'); readBtn.innerHTML = ICONS.reading; readBtn.title = 'Stop reading'; }
+  }
   else if (m.type === 'stop') {
     ignoreAudio = true; stopPlayback();
+    readDone();
     if (thinkingNow) { thinkingNow = false; idleStatus(); }
   }
-  else if (m.type === 'user') { add('you', m.text); }
-  else if (m.type === 'reply') { ignoreAudio = false; replyEnded = false; aiText = ''; aiEl = add('ai', ''); }
+  else if (m.type === 'user') { addMessage('you', m.text); }
+  else if (m.type === 'reply') {
+    ignoreAudio = false; replyEnded = false; readDone(); aiText = '';
+    aiEl = addMessage('ai');
+  }
   else if (m.type === 'thinking') { thinkingNow = true; setStatus('Thinking…', true); }
   else if (m.type === 'token' && aiEl) {
     if (thinkingNow) { thinkingNow = false; idleStatus(); }
     aiText += m.text;
-    aiEl.innerHTML = format(aiText);
+    aiEl.raw = aiText;
+    aiEl.body.innerHTML = format(aiText);
+    aiEl.acts.hidden = false;
     log.scrollTop = log.scrollHeight;
   }
 }
@@ -594,7 +696,7 @@ function ensureOut() {  // browsers allow audio only after a tap
 }
 
 function play(buf) {
-  if ((muted && !previewing) || ignoreAudio || !out) return;
+  if ((muted && !previewing && !readBtn) || ignoreAudio || !out) return;
   const pcm = new Int16Array(buf, 0, buf.byteLength >> 1);
   if (!pcm.length) return;
   const audio = out.createBuffer(1, pcm.length, 24000);
@@ -607,7 +709,7 @@ function play(buf) {
   src.start(playTime);
   playTime += audio.duration;
   sources.push(src);
-  src.onended = () => { sources = sources.filter(s => s !== src); reportPlayed(); };
+  src.onended = () => { sources = sources.filter(s => s !== src); reportPlayed(); readDone(false); };
 }
 
 function stopPlayback() {

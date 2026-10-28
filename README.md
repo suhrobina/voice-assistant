@@ -55,6 +55,10 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
    llama3.2 can't; console `/think on|off`), **Save conversation
    log** switch (off = private), **Wake word** switch and
    **Log out** (with a password). The pill next to it switches **profiles**.
+6. Under each reply: **Copy** (the text as written, with its formatting), **Read aloud** (spoken again in the
+   current profile's voice, also when the mic is off or the reply arrived as silent text; tap ■ to stop) and
+   **Share** (the device's share menu, as plain text — nothing is uploaded; shown only where the browser
+   supports it: phones, tablets, Windows/Mac, not Linux desktop or desktop Firefox).
 
 Notes:
 - Audio goes through whatever the phone uses, so Bluetooth headphones just work.

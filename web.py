@@ -215,6 +215,17 @@ def handle(source, text):
     if source == "preview":
         preview(json.loads(text))
         return None
+    if source == "speak":  # 🔊 under a reply: say it again in the current voice (not a question, not logged)
+        request = json.loads(text)
+        print("\n🔊  Read aloud", flush=True)
+        # the page plays it even while talking is off and doesn't answer "played"; the id tells it which
+        # button started this reading (several taps can be queued)
+        send({"type": "speak", "id": request["id"]})
+        tts.feed(speakable(iter([request["text"]])))
+        tts.play_async(**PLAY_OPTIONS, muted=True, on_audio_chunk=send)
+        return None
+    if source == "speak_stop":  # ■ on the reading reply: the loop's interrupt() already stopped it
+        return None
     if source == "new":  # the page's menu: New conversation
         new_conversation()
         print("\n✨  New conversation (memory kept)", flush=True)
@@ -303,6 +314,10 @@ async def handler(ws):
                 send(await asyncio.to_thread(profiles_event))
             elif m.get("type") == "profile_preview":
                 inbox.put(("preview", json.dumps(m.get("data") or {})))
+            elif m.get("type") == "speak" and str(m.get("text", "")).strip():  # 🔊 Read aloud
+                inbox.put(("speak", json.dumps({"text": str(m["text"])[:20000], "id": m.get("id")})))
+            elif m.get("type") == "speak_stop":
+                inbox.put(("speak_stop", ""))
             elif m.get("type") == "new_conversation":
                 inbox.put(("new", ""))
             elif m.get("type") == "instructions":  # the Instructions panel's Save
