@@ -251,4 +251,7 @@ After the first start (models downloaded), the assistant never contacts the inte
 - It hears you but never answers / cuts itself off → if you use speakers, start with `BARGE_IN=0 ./run.sh`.
 - `libcudnn` / `libcublas` errors → always start with `./run.sh` (it sets the library path).
 - Out of GPU memory → use `STT_MODEL=small.en` or a smaller LLM.
+- Speech recognition failed once → it keeps listening; say it again. After a GPU error (e.g. out of memory
+  during a long dictation) Whisper can't recover: the service restarts itself (about 30 s, the page says so);
+  started by hand, restart `./run.sh`. Long dictation uses little extra GPU memory (`batch_size=1`).
 - No mic input → check `pactl list sources short`, set default mic in system sound settings.

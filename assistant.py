@@ -734,6 +734,9 @@ def make_recorder(interrupt, wake_word=WAKE_WORD, on_wake=None, **extra):
         post_speech_silence_duration=profile["silence"],  # profiles can change it (apply_profile)
         min_length_of_recording=0.3,          # ignore sounds shorter than this (coughs, clicks)
         min_gap_between_recordings=0,
+        # one 30 s window at a time: the default 16 needs more GPU memory the longer you talk (3 min of dictation:
+        # +748 MiB vs +236 MiB, same text and speed) and ran out next to a big Ollama model, breaking Whisper
+        batch_size=1,
         beam_size=1,                          # 5 = slightly better transcription, slower
         early_transcription_on_silence=0.2,  # start transcribing before silence timer ends
         on_vad_start=interrupt,               # barge-in (fires on actual speech)
@@ -834,10 +837,28 @@ on_model_loading = None  # web.py: callback(label, or None when done)
 WAKE_PHRASE = re.compile(r"^\W*" + r"\W+".join(WAKE_WORD.split("_")) + r"\b\W*", re.I) if WAKE_WORD else None
 
 
-def listen(recorder, inbox):
-    """Put each spoken sentence into the inbox."""
+def listen(recorder, inbox, on_error=None):
+    """Put each spoken sentence into the inbox. recorder.text() raises when a transcription fails; that used
+    to end this thread, and with it all listening until a restart. on_error(gpu): web.py tells the page."""
     while True:
-        text = recorder.text().strip()
+        try:
+            text = recorder.text().strip()
+        except Exception as e:
+            if getattr(recorder, "is_shut_down", False):
+                return
+            # after a GPU error (e.g. out of memory) Whisper's CUDA state stays broken ("invalid device ordinal")
+            gpu = any(w in str(e).lower() for w in ("cuda", "device ordinal"))
+            print(f"⚠️  Speech recognition failed: {e}", flush=True)  # the error only, nothing that was said
+            if on_error:
+                on_error(gpu)
+            if gpu and os.getenv("VA_SERVICE"):
+                print("    Whisper can't recover from a GPU error: restarting the service.", flush=True)
+                time.sleep(1)  # let the page get the message
+                os._exit(1)    # systemd starts it again (Restart=on-failure)
+            if gpu:
+                print("    Restart the assistant to get speech recognition back.", flush=True)
+            time.sleep(0.5)    # no tight loop if it keeps failing
+            continue
         if WAKE_PHRASE and recorder.use_wake_words:
             text = WAKE_PHRASE.sub("", text).strip()  # only "Hey Jarvis" = just stop the reply
             text = text[:1].upper() + text[1:]

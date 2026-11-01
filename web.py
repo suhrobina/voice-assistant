@@ -173,6 +173,17 @@ def guarded(tokens):
         send({"type": "error", "text": f"Couldn't answer: {e}"})
 
 
+def stt_failed(gpu):
+    """listen(): a transcription failed. After a GPU error the service restarts itself (as a service)."""
+    if gpu and os.getenv("VA_SERVICE"):
+        text = "Speech recognition hit a GPU error. Restarting the assistant, back in about 30 s…"
+    elif gpu:
+        text = "Speech recognition hit a GPU error. Restart the assistant to use your voice again."
+    else:
+        text = "Speech recognition failed. Please say that again."
+    send({"type": "error", "text": text})
+
+
 def drain(tokens):
     for _ in tokens:
         pass
@@ -493,7 +504,8 @@ async def main():
           flush=True)
     assistant.on_memory_change = memory_event
     assistant.on_model_loading = lambda label: send({"type": "loading", "label": label})  # None = done
-    threading.Thread(target=listen, args=(recorder, inbox), daemon=True).start()
+    threading.Thread(target=listen, args=(recorder, inbox), daemon=True,
+                     kwargs={"on_error": stt_failed}).start()
     threading.Thread(target=conversation, daemon=True).start()
 
     async with serve(handler, HOST, PORT, process_request=http,
