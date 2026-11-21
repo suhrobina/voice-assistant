@@ -47,7 +47,8 @@ With `BARGE_IN=0` you can't interrupt it mid-answer; wait until it finishes spea
    - **■** (while talking): stop talking — back to silent text chat.
    Keep the page open.
 4. Next to it, the **microphone button** mutes only the mic while talking (replies keep playing), e.g. while
-   you speak to someone else; tap again to unmute.
+   you speak to someone else; tap again to unmute. The **speaker button** before it turns spoken replies off:
+   you keep talking hands-free, replies arrive as text only (Read aloud still works). It's remembered per device.
 5. **☰** (left) opens the menu: **New conversation** (fresh start with a clean chat, memory kept; console:
    `/new`), **Instructions** (your own rules for every profile, see below), **Memory**, **Use memory** switch (off = the AI ignores and learns nothing), **Think first** switch (it reasons
    silently before answering: smarter on hard questions, a few seconds slower, the page shows *Thinking…*;

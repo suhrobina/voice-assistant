@@ -67,7 +67,8 @@ class Client:
     ws = None
     queue = None
     loop = None
-    muted = False  # set by the page: True = text-only replies (talking is off)
+    muted = False  # set by the page: True = text-only replies (talking is off, or Speak replies off on that device)
+    mic = False    # set by the page: voice mode is on (a silent reply then opens the wake word follow-up window)
     wake_mode = False  # require the wake word (the menu's switch; saved in settings.json)
     replying = False   # a spoken reply is playing in the browser (until "played" or an interrupt)
 
@@ -184,9 +185,11 @@ def stt_failed(gpu):
     send({"type": "error", "text": text})
 
 
-def drain(tokens):
+def drain(tokens, then=None):
     for _ in tokens:
         pass
+    if then:
+        then()
 
 
 def conversation():
@@ -253,7 +256,9 @@ def handle(source, text):
     tokens = guarded(llm_stream(text, on_token=lambda t: send({"type": "token", "text": t}),
                                 source=source))
     if Client.muted:
-        text_reply = threading.Thread(target=drain, args=(tokens,), daemon=True)
+        # voice mode with Speak replies off: "end" lets the page answer "played", which opens the follow-up window
+        then = (lambda: send({"type": "end"})) if Client.mic else None
+        text_reply = threading.Thread(target=drain, args=(tokens, then), daemon=True)
         text_reply.start()
         return text_reply
     tts.feed(speakable(tokens))
@@ -298,6 +303,7 @@ async def handler(ws):
                 inbox.put(("typed", str(m["text"]).strip()))
             elif m.get("type") == "mute":
                 Client.muted = bool(m.get("value"))
+                Client.mic = bool(m.get("mic"))
             elif m.get("type") == "profile":
                 inbox.put(("profile", str(m.get("name", ""))))
             elif m.get("type") == "profiles":  # the Profiles panel opened: send a fresh list

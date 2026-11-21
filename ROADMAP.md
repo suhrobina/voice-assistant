@@ -3,6 +3,7 @@
 Ideas to make this the perfect local AI assistant. Pick one, build it, tick it off.
 
 ## ✅ Done
+- [x] Speaker button next to the mic mute: talk hands-free, get replies as text only; remembered per device
 - [x] Long dictation no longer breaks speech recognition: Whisper `batch_size=1` (3 min: +236 MiB instead of +748), listening survives a failed transcription, and after a GPU error the service restarts itself
 - [x] Working local assistant: Whisper → Ollama → Kokoro, fixed missing packages and barge-in
 - [x] Web mode: `./run.sh --web`, a browser on any device (phone, tablet, PC), works with Bluetooth headphones
